@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>ChronoSleep 카페인 마감 튜너</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;family=Poppins:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+/* 밝은 테마 하나만 쓴다. 레이아웃: 시안 그대로 — 라벤더 바탕 위 흰 카드 4장(1. 입력 → 2. 결과 → 농도 곡선 → 한눈에 보기). PC에서는 입력 | 결과 2단. */
+:root{
+  color-scheme: light;
+  --bg:#F0EFFA; --card:#FFFFFF; --line:#E1DFF3; --band:#F4F3FC; --soft:#EDEBFB;
+  --ink:#1A1B4B; --ink-2:#4A4B73; --ink-3:#66678C; --field-line:#8587AD;
+  --primary:#2F2C8C; --on-primary:#FFFFFF; --accent:#2F2C8C; --focus:#5B57E0;
+  --teal:#0E9E83; --track:#DDDCEC;
+  --caf:#2F8CEB; --mel:#7B2CBF; --caf-soft:#CFE5FB; --stripe:#C6C5DC;
+  --good:#1B7A3A; --good-bg:#CFF3D8; --bad:#B4261E; --bad-bg:#FBE1DE; --warn:#8A5600; --warn-bg:#FCEBC4;
+  --shadow:0 6px 22px rgba(47,44,140,.08);
+  --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6' fill='none' stroke='%234A4B73' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --f-body:-apple-system,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
+  --f-num:"Poppins",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+h1,h2,h3,p,ul,dl,dd{margin:0}
+ul{padding:0;list-style:none}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none !important}
+svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.app{max-width:1240px;margin:0 auto;padding:14px 16px 40px}
+
+/* ── 머리 ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--f-num);font-weight:700;font-size:20px;letter-spacing:-.01em;color:var(--ink)}
+.brand svg{width:30px;height:30px;flex:none}
+.iconbtn{width:44px;height:44px;margin-right:-8px;display:grid;place-items:center;border:0;background:transparent;border-radius:12px;color:var(--ink-2)}
+.iconbtn:hover{background:var(--soft)}
+.titleblock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+h1{font-size:21px;line-height:1.3;font-weight:700;letter-spacing:-.02em}
+.titleblock p{color:var(--ink-2);margin-top:4px}
+.illo{width:118px;height:auto;flex:none}
+.persona{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 16px}
+.pbtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:8px 12px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink-2);font-weight:500;box-shadow:var(--shadow)}
+.pbtn .chk{display:none;width:18px;height:18px;flex:none}
+.pbtn{white-space:nowrap}
+@media (max-width:374px){.pbtn{gap:6px;padding:8px}.pbtn>svg:first-child{display:none}}
+.pbtn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary);font-weight:700}
+.pbtn[aria-pressed="true"] .chk{display:block}
+
+/* ── 카드 ── */
+.layout{display:flex;flex-direction:column;gap:16px}
+.results{display:flex;flex-direction:column;gap:16px;min-width:0;scroll-margin-top:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-width:0;overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--band)}
+.card-h svg{color:var(--accent)}
+.card-h h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.card-h .reset{margin:-8px -8px -8px auto;color:var(--ink-2)}
+.card-h .reset svg{color:inherit}
+.card-h .reset:hover{background:var(--card)}
+.card-b{display:flex;flex-direction:column;padding:8px 16px 16px;min-width:0}
+.plain .card-h{background:transparent;padding-bottom:4px}
+
+/* ── 입력 ── */
+.row{display:flex;align-items:center;gap:10px;min-height:56px}
+.row>svg{color:var(--ink-2)}
+.row label,.row .lab{flex:1;font-weight:500;min-width:0}
+select{appearance:none;-webkit-appearance:none;min-height:46px;width:132px;padding:8px 34px 8px 14px;font-size:16px;font-variant-numeric:tabular-nums;background:var(--card) var(--chev) no-repeat right 11px center/14px;border:1.5px solid var(--field-line);border-radius:12px}
+input[type="time"]{min-height:46px;width:150px;padding:8px 12px;font-size:16px;font-variant-numeric:tabular-nums;background:var(--card);border:1.5px solid var(--field-line);border-radius:12px}
+select[aria-invalid="true"],input[aria-invalid="true"]{border-color:var(--bad);border-width:2px}
+.err{display:flex;gap:6px;align-items:flex-start;color:var(--bad);font-size:14px;font-weight:500;margin:0 0 8px}
+.err::before{content:"!";flex:none;display:inline-grid;place-items:center;width:18px;height:18px;margin-top:1px;border-radius:50%;background:var(--bad);color:var(--card);font-size:12px;font-weight:700}
+.hint{color:var(--ink-2);font-size:14px}
+
+.doselist{border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+.doselist li{display:flex;align-items:stretch}
+.doselist li+li{border-top:1px solid var(--line)}
+.doselist li.bad{background:var(--bad-bg)}
+.del{flex:none;width:46px;min-height:48px;display:grid;place-items:center;border:0;background:transparent;color:var(--ink-3)}
+.del svg{width:18px;height:18px}
+.del:hover{background:var(--bad-bg);color:var(--bad)}
+.dose{display:flex;align-items:center;gap:10px;flex:1;min-width:0;min-height:48px;padding:8px 4px 8px 12px;border:0;background:transparent;text-align:left;font-variant-numeric:tabular-nums}
+.dose:hover{background:var(--band)}
+.dose svg{width:18px;height:18px;color:var(--ink-3)}
+.dose .t{width:48px;flex:none}
+.dose .n{flex:1;min-width:0}
+.dose .m{flex:none;color:var(--ink-2)}
+.dose-empty{padding:14px;color:var(--ink-2);text-align:center}
+.addbtn{min-height:46px;margin-top:8px;border:1.5px solid var(--field-line);border-radius:12px;background:var(--soft);color:var(--accent);font-weight:700}
+.addbtn:hover{border-color:var(--accent)}
+.sep{height:1px;background:var(--line);margin:10px 0 2px}
+.checks{display:flex;flex-wrap:wrap;gap:0 18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:2px 0}
+.check{display:flex;align-items:center;gap:8px;min-height:46px}
+.check input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--primary)}
+.tri-row{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding:12px;border-radius:12px;background:var(--soft)}
+.tri-lab{font-weight:500}
+.tri-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;border-radius:999px;background:var(--card);border:1.5px solid var(--line)}
+.tri-seg label{position:relative}
+.tri-seg input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.tri-seg span{display:grid;place-items:center;min-height:44px;border-radius:999px;font-weight:500;color:var(--ink-2)}
+.tri-seg input:checked+span{background:var(--primary);color:var(--on-primary);font-weight:700}
+.tri-seg input:focus-visible+span{outline:3px solid var(--focus);outline-offset:2px}
+.slider-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;margin-top:6px}
+#adapt-hint{margin:-2px 0 8px}
+.slider-h label{font-weight:500}
+.slider-h output{font-family:var(--f-num);font-weight:600;font-variant-numeric:tabular-nums}
+.info{width:32px;height:32px;margin:-6px -4px -6px -2px;padding:0;display:inline-grid;place-items:center;vertical-align:middle;border:0;background:transparent;border-radius:50%;color:var(--ink-3);position:relative}
+.info::after{content:"";position:absolute;inset:-6px}
+.info svg{width:18px;height:18px}
+.info[aria-expanded="true"]{color:var(--accent);background:var(--soft)}
+input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:44px;margin:0;background:transparent;--p:100%}
+input[type="range"]::-webkit-slider-runnable-track{height:10px;border-radius:5px;background:linear-gradient(to right,var(--teal) var(--p),var(--track) var(--p))}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-8px;border-radius:50%;background:var(--card);border:4px solid var(--teal)}
+input[type="range"]::-moz-range-track{height:10px;border-radius:5px;background:var(--track)}
+input[type="range"]::-moz-range-progress{height:10px;border-radius:5px;background:var(--teal)}
+input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--card);border:4px solid var(--teal)}
+.tipbox{padding:10px 12px;border-radius:12px;background:var(--soft);color:var(--ink);font-size:15px}
+.cta{display:flex;align-items:center;justify-content:center;gap:10px;min-height:54px;margin-top:8px;border:0;border-radius:14px;background:var(--primary);color:var(--on-primary);font-weight:700;font-size:18px}
+.cta svg{width:20px;height:20px}
+.cta[aria-busy="true"] svg{animation:pulse .7s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.35}to{opacity:1}}
+.form-alert{display:flex;gap:8px;padding:10px 12px;border-radius:12px;background:var(--bad-bg);color:var(--ink);font-weight:500;margin-top:8px}
+
+/* ── 결과 ── */
+.lb{font-size:16px;font-weight:500;line-height:1.35}
+.val{font-family:var(--f-num);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink);line-height:1.1}
+.val small{font-size:.6em;font-weight:600;margin-left:3px}
+.val.word{font-family:var(--f-body);line-height:1.25}
+.cap{font-size:14px;color:var(--ink-2)}
+.cap.warn{color:var(--warn);font-weight:700}
+.cap.bad{color:var(--bad);font-weight:700}
+.hero{display:flex;flex-direction:column;gap:4px;margin-top:6px;padding:12px 14px 12px;border:1.5px solid var(--line);border-radius:16px;min-width:0}
+.hero-h{display:flex;align-items:center;gap:8px;min-height:28px}
+.hero-h .rb-key{margin-left:auto}
+.hero-v{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 12px}
+.hero .val{font-size:48px}
+.hero .val.word{font-size:32px}
+.hero .cap{font-size:15px}
+.minis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.mini{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:6px 6px 9px 7px;border:1px solid var(--line);border-radius:14px;min-width:0}
+.mini-h{display:flex;align-items:center;justify-content:space-between;align-self:stretch;min-height:30px}
+.mini .lb{font-size:14px;letter-spacing:-.03em}
+.mini .val{font-size:22px;margin-top:2px}
+.mini .pill{min-height:28px;padding:1px 12px;font-size:16px;margin-top:2px}
+.mini .cap{letter-spacing:-.03em}
+.tipbox{margin:8px 0 0}
+
+.ribbon{display:flex;flex-direction:column;margin-top:8px}
+.rb-top{position:relative;height:22px;margin-bottom:7px;font-size:14px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.rb-top span{position:absolute;top:0;white-space:nowrap}
+.rb-wrap{position:relative}
+.rb-tick{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink);box-shadow:0 0 0 1.5px var(--card);z-index:1}
+.rb-track{position:relative;height:40px;border-radius:10px;overflow:hidden;background:var(--track)}
+.rb-z{position:absolute;top:0;bottom:0;display:grid;place-items:center;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden}
+.rb-ok{background:var(--caf-soft);color:var(--ink)}
+.rb-stop{background:repeating-linear-gradient(135deg,var(--track) 0 7px,var(--stripe) 7px 9px);color:var(--ink-2)}
+.rb-sleep{background:var(--primary);color:var(--on-primary)}
+.rb-dose{position:absolute;bottom:-6px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--card);border:3px solid var(--caf);z-index:2}
+.rb-bot{position:relative;height:21px;margin-top:8px;font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.rb-bot span{position:absolute;top:0;white-space:nowrap}
+.rb-key{font-size:14px;color:var(--ink-2)}
+.rb-key i{display:inline-block;vertical-align:middle;width:10px;height:10px;margin-right:6px;border-radius:50%;background:var(--card);border:2.5px solid var(--caf)}
+.c-caf{color:var(--caf)} .c-mel{color:var(--mel)} .c-teal{color:var(--teal)}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:2px 16px;border-radius:999px;font-weight:700;font-size:19px}
+.pill.good{background:var(--good-bg);color:var(--good)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill svg{width:16px;height:16px;stroke-width:2.6}
+
+.state{display:flex;flex-direction:column;gap:8px;padding:22px 8px 10px;text-align:center;align-items:center}
+.state h3{font-size:18px}
+.state p{color:var(--ink-2);max-width:26em}
+.state svg{width:40px;height:40px;color:var(--ink-3)}
+#v-error{text-align:left;align-items:stretch;padding:14px 4px 4px}
+#v-error h3{color:var(--bad)}
+#v-error ul{display:flex;flex-direction:column}
+.jump{min-height:44px;width:100%;padding:8px 0;border:0;background:transparent;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.sk{display:flex;flex-direction:column;gap:10px;padding-top:6px}
+.sk i{display:block;height:58px;border-radius:14px;background:linear-gradient(100deg,var(--soft) 30%,var(--band) 50%,var(--soft) 70%);background-size:300% 100%;animation:sh 1.1s linear infinite}
+.sk i.wide{height:196px}
+@keyframes sh{from{background-position:100% 0}to{background-position:0 0}}
+
+/* ── 농도 곡선 ── */
+.chart{position:relative;width:100%;touch-action:pan-y;user-select:none;-webkit-user-select:none;border-radius:8px}
+.chart svg{display:block;width:100%;height:auto}
+.chart text{font-family:var(--f-body);font-size:13px;fill:var(--ink-2);font-variant-numeric:tabular-nums}
+.cpill{position:absolute;top:0;left:0;display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:2px 10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card);box-shadow:var(--shadow);font-size:14px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:none;transition:opacity .12s}
+.cpill svg{width:14px;height:14px;stroke-width:2.2}
+.cpill.bed{color:var(--accent);border-color:var(--accent)}
+.cpill.cut{color:var(--ink)}
+.cpill.cut svg{color:var(--caf)}
+.cpill.tip{flex-direction:column;align-items:flex-start;gap:0;padding:5px 10px;background:var(--ink);border-color:var(--ink);color:var(--card);font-weight:500;opacity:0;line-height:1.35}
+.cpill.tip b{font-family:var(--f-num);font-weight:700}
+.chart.scrub .cpill.bed,.chart.scrub .cpill.cut{opacity:0}
+.chart.scrub .cpill.tip{opacity:1}
+.chart .cross{opacity:0}
+.chart.scrub .cross{opacity:1}
+.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 18px;padding-top:6px;font-size:14px;color:var(--ink-2)}
+.legend i{display:inline-block;vertical-align:middle;width:20px;height:0;margin-right:6px;border-top:3px solid}
+.legend .l-caf{border-color:var(--caf)} .legend .l-mel{border-color:var(--mel)}
+.legend .l-thr{border-top:2px dashed var(--ink-3)}
+.legend .l-dose{width:10px;height:10px;border:2.5px solid var(--caf);border-radius:50%;background:var(--card)}
+details.more{margin-top:8px;border-top:1px solid var(--line)}
+details.more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:46px;color:var(--ink-2)}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::after{content:"";width:14px;height:14px;background:var(--chev) no-repeat center/14px}
+details.more[open]>summary::after{transform:rotate(180deg)}
+.tablewrap{overflow-x:auto}
+#detail-card details.more{margin-top:0}
+#detail-card details.more:first-child{border-top:0}
+#detail-card details.more>summary{color:var(--ink);font-weight:500;min-height:48px}
+#detail-card details.more[open]{padding-bottom:12px}
+#detail-card th:first-child,#detail-card td:first-child{position:sticky;left:0;background:var(--card)}
+#detail-card th{line-height:1.3;vertical-align:bottom;font-size:14px}
+#detail-card th.grp{text-align:center;color:var(--ink);font-weight:700;padding-bottom:4px}
+#detail-card th.grp+th.grp{border-left:1px solid var(--line)}
+#detail-card td:last-child{border-left:1px solid var(--line)}
+#detail-card tr:last-child th:last-child{border-left:1px solid var(--line)}
+@media (max-width:429px){#detail-card th,#detail-card td{padding:8px 6px}}
+@media (max-width:359px){#detail-card th{font-size:13px}#detail-card td{font-size:14px}}
+.kv{display:flex;flex-direction:column;gap:8px}
+details.sub{border-radius:12px;background:var(--soft);padding:0 12px}
+details.sub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:46px;font-size:15px;font-weight:700;color:var(--ink)}
+details.sub>summary::-webkit-details-marker{display:none}
+details.sub>summary::after{content:"";flex:none;width:14px;height:14px;background:var(--chev) no-repeat center/14px}
+details.sub[open]>summary::after{transform:rotate(180deg)}
+details.sub dl{display:flex;flex-direction:column;margin:0;padding-bottom:4px}
+details.sub dl>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line);font-size:15px;line-height:1.35}
+details.sub dt{color:var(--ink)}
+details.sub dt small{display:block;font-size:13px;color:var(--ink-2)}
+details.sub dd{margin:0;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.fa-h{margin:16px 0 8px;font-size:15px;font-weight:700}
+.assume{display:flex;flex-direction:column;gap:8px;margin:0;padding-left:18px;list-style:disc;font-size:15px;color:var(--ink-2)}
+table{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--ink-2)}
+
+/* ── 한눈에 보기 ── */
+.sumlist{display:flex;flex-direction:column;gap:10px;padding-top:4px}
+.sumlist li{display:flex;gap:10px;align-items:flex-start}
+.dot{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--card)}
+.dot svg{width:14px;height:14px;stroke-width:3}
+.dot.good{background:var(--teal)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.disclaimer{color:var(--ink-2);font-size:14px;padding:0 4px}
+
+/* ── 시트(다이얼로그) ── */
+dialog{width:100%;max-width:none;margin:auto 0 0;padding:0;border:0;border-radius:22px 22px 0 0;background:var(--card);color:var(--ink);overflow:hidden}
+dialog::backdrop{background:rgba(16,17,39,.5)}
+.sheet{display:flex;flex-direction:column;gap:14px;padding:18px 16px max(18px,env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sheet-h h2{font-size:19px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative}
+.chip input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.chip span{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 14px;border-radius:999px;border:1.5px solid var(--field-line);white-space:nowrap}
+.chip span b{font-family:var(--f-num);font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.chip input:checked+span{background:var(--primary);border-color:var(--primary);color:var(--on-primary);font-weight:700}
+.chip input:checked+span b{color:var(--on-primary)}
+.chip input:focus-visible+span{outline:3px solid var(--focus);outline-offset:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-weight:500}
+.field select,.field input[type="time"]{width:100%;min-height:50px}
+.unit{position:relative}
+.row .unit{width:150px;flex:none}
+.row .unit input{min-height:46px}
+.unit input{width:100%;min-height:50px;padding:8px 44px 8px 14px;font-size:16px;font-variant-numeric:tabular-nums;background:var(--card);border:1.5px solid var(--field-line);border-radius:12px}
+.unit span{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.actions{display:flex;gap:10px}
+.btn{flex:1;min-height:52px;border-radius:14px;border:1.5px solid var(--field-line);background:transparent;font-weight:700}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary);flex:2}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.facts{display:flex;flex-direction:column}
+.facts>div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:10px 0;border-top:1px solid var(--line)}
+.facts dt{color:var(--ink-2)}
+.facts dd{font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.facts dd small{display:block;font-weight:400;font-size:14px;color:var(--ink-2)}
+.formulas{display:flex;flex-direction:column;gap:12px;margin:0}
+.formulas>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.formulas dt{font-weight:500;color:var(--ink-2);font-size:15px}
+.formula{margin:0;font-family:var(--f-num);font-weight:600;padding:10px 12px;border-radius:10px;background:var(--soft);line-height:1.5;word-break:normal;overflow-wrap:anywhere}
+
+@media (max-width:959px){
+  body.pre .app{padding-bottom:112px}
+  body.pre .cta{position:fixed;left:16px;right:16px;bottom:max(14px,env(safe-area-inset-bottom));z-index:5;margin:0;box-shadow:0 10px 26px rgba(47,44,140,.32)}
+  body.pre::after{content:"";position:fixed;left:0;right:0;bottom:0;height:96px;z-index:4;pointer-events:none;background:linear-gradient(to top,var(--bg) 62%,rgba(240,239,250,0))}
+}
+@media (max-width:359px){
+  .illo{width:96px}
+  .row{gap:8px}
+  .row>svg{width:20px;height:20px}
+  input[type="time"]{width:130px;padding:8px 8px 8px 10px}
+  .row .unit{width:130px}
+  .dose{flex-wrap:wrap;gap:0 8px;padding-top:9px;padding-bottom:9px}
+  .dose .n{order:-1;flex:1 0 100%;font-weight:500}
+  .dose .m{margin-left:auto}
+  .mini .lb,.mini .cap{letter-spacing:-.04em}
+}
+@media (min-width:960px){
+  .app{padding:28px 32px 56px}
+  .titleblock{justify-content:flex-start;gap:28px;margin-top:10px}
+  h1{font-size:30px}
+  .illo{width:156px}
+  .persona{max-width:420px;margin:16px 0 22px}
+  .layout{display:grid;grid-template-columns:420px minmax(0,1fr);gap:24px;align-items:start}
+  .card-h{padding:14px 20px}
+  .card-b{padding:10px 20px 20px}
+  dialog{width:460px;margin:auto;border-radius:22px}
+}
+@media (min-width:1120px){
+  .hero{padding:16px 20px}
+  .hero .val{font-size:58px}
+  .minis{gap:10px}
+  .mini{padding:10px 12px 12px 14px}
+  .mini .lb{font-size:16px;letter-spacing:0}
+  .mini .val{font-size:28px}
+  .mini .pill{font-size:19px;min-height:34px;padding:2px 16px}
+}
+@media (prefers-reduced-motion:reduce){
+  .sk i,.cta[aria-busy="true"] svg{animation:none}
+  .cpill{transition:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-alarm" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.8M4.5 5.5L7 3.5M19.5 5.5L17 3.5"/></symbol>
+  <symbol id="i-bed" viewBox="0 0 24 24"><path d="M3 18v-8M3 15h18v3M21 15v-2.5a2.5 2.5 0 0 0-2.5-2.5H10v5"/><circle cx="6.6" cy="12.2" r="1.6"/></symbol>
+  <symbol id="i-cup" viewBox="0 0 24 24"><path d="M5 8h11v5.5A4.5 4.5 0 0 1 11.5 18h-2A4.5 4.5 0 0 1 5 13.5zM16 9.5h1.8a2.2 2.2 0 0 1 0 4.4H16M4 21h13"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 10.5a4.5 4.5 0 0 1 7 0M12 8.2l1 2.6"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1-4.5L16.5 4a2.1 2.1 0 0 1 3 3L8 18.5zM14.5 6l3 3"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-8M15 7h5v5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18M4 16c2-8 4-10 6-5s4 5 5 0 3-4 5-1"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-pill" viewBox="0 0 24 24"><rect x="2.8" y="8" width="18.4" height="8" rx="4" transform="rotate(-40 12 12)"/><path d="M9.4 8.9l5.2 6.2"/></symbol>
+  <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14zM6.5 11.8V16c1.6 1.4 3.4 2 5.5 2s3.9-.6 5.5-2v-4.2"/></symbol>
+  <symbol id="i-case" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2.5"/><path d="M9 7.5V5.5h6v2M3.5 12.5h17"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 5v8.5M12 18v.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.2A8 8 0 0 1 9.8 4.5a8 8 0 1 0 9.7 9.7z" fill="currentColor"/></symbol>
+  <symbol id="i-bars" viewBox="0 0 24 24"><path d="M5 20v-6M10 20V9M15 20V4M20 20V4" /></symbol>
+  <symbol id="i-go" viewBox="0 0 24 24"><path d="M9 5.5l6.5 6.5L9 18.5"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4M19.6 4.2v4.4h-4.4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.3 6.5h.4M4.3 12h.4M4.3 17.5h.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+</svg>
+
+<div class="app">
+  <header>
+    <div class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 30 30" aria-hidden="true"><path d="M25.5 19.5A11.5 11.5 0 1 1 16 3.6" fill="none" stroke="var(--accent)" stroke-width="3.2" stroke-linecap="round"/><path d="M15 9.5V15l4.6-3.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22.5" cy="6" r="1.6" fill="var(--teal)"/></svg>
+        ChronoSleep
+      </div>
+    </div>
+    <div class="titleblock">
+      <div>
+        <h1>생체시계&nbsp;· 카페인&nbsp;· 수면&nbsp;튜너</h1>
+      </div>
+      <img class="illo" src="data:image/webp;base64,UklGRgg6AABXRUJQVlA4WAoAAAAQAAAAZwEABAEAQUxQSHMVAAABxmDQtpGkhD/sfTrbOwARMQGmtHtZYBp5CTiY3DuL52SdeB444ssB30byxsCcxJ0q+ysc2tr4FTs/AhWCApay9cgUBxd7d3TVNpDAFUBwDdhLlwK/5Y6uWoANGUP2Mqic5ShHevz/l5G0JDN7tu27x7Zt27Zt27Zt27a5mN09PjgbO0na/l6vNk07baezf/5+EQEJkuS2zQLgIfPApEMgQPvpO5IkS5Jt2wJ1oDEAmPN3/k5AJhLz9/1+gjHHqM6aj8pwe6hZxKdKRMiCbStOpZ2LGSTIIHC5YPr1r3fauCgUCS1cdB6w/Ppb73Xsedfdds+Djz//2lv02nOP3H3LdWfsv+1GK/bvwkPs+bwWkLP2k+JEobTUb/mt9j/31qe/+L11dptyIYbyVHlOy59fPHP7KbusMahTiNn2UZAgMk5Oh2EbHX3rqz/8swjCytGkohU5ruWkt03/682bj958eDionXP/GDsYucsFz/0+xzNvFOOkEjnaMZUbrYi0Qonhu2zON3cesmrnICh+trzGhwnzyh+x5y1fz4NAaYkY5Ee2E4lxFRlKk58UybilGh4+ZIKZLY9TQqz9+Q7b9/YvZwMiBreFkV/kfVMhyHJTGbfUoi8u3qx7LI+a71O32qmvTTd+UP24EU+mpHQUH1qiH0T1t2/ZjSEWRXvARwQ+vXa8/c8yIBphblYUKUmAOPHeLYtGdKzp2Ro+HTa8dQogutL/7wPENq0Cj9/OH8WQFwWv6c8psc61f3iAOvSQ+ia4KakB5zy5bcHPmtfu+GMu/E4GPk742a4IEak2F7yvj+4eSJg12Va39SNzfZ+ysuUnK1qVEbDxtD6+pZZGMA/y6Et+B0Tp+5CPrGvDQwJOu2ZULRV6eJD3Jo8tANSSXETMoI2oWh9Y5t4yIthdrbTRPh864GX5OQXxkWoZcNZ1Q/2S10Rb3V5fGfHjPqb0ewg/wvTL+vjVhZpn6370T4BKhn2mHrTsX9t+iAmx71kl34aOW90K3/LBhv4+apUEyVmnU6YYkk1mDI0qkiZQ9w5mAmuUnL7/T2Fb9QNRuTD10CBRDdrJRp9kzWb7CppuenUcQ1FrdjL+YR38HlBWBcemYJWE2Wd19D1ryU76XjsPdEZlm1aIpAffrlt9njzLqQ5pBVdmu1rflyJSsPTiOlasMlj2rtXfASzrjLeedKZJI3yxin+r5z14kXW+fhlI7TqZps2JojIsPJlhId8dguE6P4ATatVG3AkMsnyyb77vjLD7DW0gq6pm3xhk09aMY46LNxv+Bq7GXFQK6AqR142HhHheGfxUOam0A+8OyOWGFi7Y+DeDPCsFm/iS0LBaDnc8CIaHzwiEyBwFooTZezDkeRut9/OA9hrRlkHgzXW52s7Ci2yVvwJZPX8VBO/0YYU8lW/2mwtlN58Vwc8jclMTiivBky7mtm5ZKyf3SNj/naB5O7dBfvY75aKVcM36QL5xc1xJT58uZc/imZXWd18AaUVbRCVSBD+VEY5ZNQzP9lCm18G4yCeqz5+pWFmyagTr9DjodPIQPHrZrTdoCY/4YkRuOQm7vQdSO7mAl3uFiMrwXEcmcmuXw7+Bck48dl5f6Zb3eqaqeabNaq2BcTE/0K/Af90vRc0xy2armTnQ+IoUKOHbQOeNZxF3XZoHRm3tj29Ns5GFZ9bsUfbl3VyAmnyRYoLMmoN1YMjNAYecfNSF8VzZ0ZGeoyhAjVHk61frRH7oAh7n6eqzz0glBfqxjAx04NmwHw+aqs8XmIChb8wLXcRDQ6YKMUQkXMwKOZHC1Q5WRZ6Tf0VzFivmgTkcHO3WMuUgaTik+q1F3Ev7ptYpcpZtWu26iFsuc31T+zT8N666NeFKMzzlUA3UEn7zGw2r2YyZCIapifrdztVbTxJs4J8gnRoJLMMzVevFscdXUM4Pm37yqVy14jsneq3ae21e9qjBklbODtWpi3i7b2opSOP/o5moRnMCSKuBkcwyZhFJ+Lar4NVndlWhOQSTBWxvnH2x6rwEW32+oyjPAIjKBWlonq4Z0GBGov73AHvQ06ORVnIjJqoq97q3wrkvhiUhBX91E1WkC3iz3SC2KG+1Bs1oBH+0iuIU8VDzlc+8wZzZhpNYsWpyWHNRMEayVkPT0lWrJA4X3X4F6eQ0kPjxuoKfq0R6L+I90BaVQwXAip1BjW5EqODOqohDeDKUdfIwe2g/7SAiKm+3ZDTHlCNtLTVFn86aGfKG9qb0F5jxNzW46Bv0KNR6YNxd8UxtiviI5SXmG5Yr24aEgzIeh/DA2O+KL8MI0+ycbDfNCrbyPCf2iKfbxEI+yPJaMJw6fZdj/ZDDcoN8fU6GvQivybEZJq4tlsy45CyckFkvwbbTKucww3UQZvVQEl5hGfXiope5r60maeZBCnbPqBfhXZX74fEybA0alnqJ5AgvdduEOsh2G74wyhAuE2xf4YguvNav5JlvvtwYDZf0JkwkB9ft74ey096AhB/9sX4Z2wi2hVaUCZv00xAGfvsSFd554ZzC70aO+fMj6dmjjTtEc0ZykbEcbzQngc0njN4UPJytPQi2Rpsmx80njDdk0cZMZApvpTan8e3ZE0nBdx0Fz5Df7l6Gmq3EYVxqiSScwgoZqug3ZglG50McbA3HoXH6EC6ylCZnnjNeSBUjvLsnK4RwtWWa0j9AzIFxaFq6ekaSCPzQbLeiVM8hk5g39pXwQgR4enQ/UImNdBpG8LMmElg3z4IXF53rPe3QRpcT+uo8FHxTJ7Ix7Em5htqGLczfmPqQ9AnH/tM8bRs1tiXzTr3GbhxTp5eAzNtKpBLUGTAknJwU4fFz5EP/d7WTt+N+QTr+EEJ5pe4c0wW7DaQTA9wkDnMqBUq2AbwCutJiR0cXae5vbku7xBkZdJk80jhrNBephj8R9cZAM92m0xZAnNPu1jQJ8dVl9FxA/6Orv3vZQ4zZnLYBhNq/nbmjUiSCPQNlJwW5AkbDIHyNT25Ijwi20jJHp/F7F83V4ucTy4F+V0+kca7fRZkangSZKcFZWLi8EgOGmLHuTIsIvx3WdbJVQZEFePMbpOV2euyyzqIJXKSE+6LoB2XfyTiajvTWpPfQtbstHcJx2CzXGn6RWZ2zCSMdEzQfW/CM4amQAl5kn36eYhZxo1RMn1zJRBq07zRPxaqArurCEVReIDx9KMcU6JkWyoVb1gfzBqcKLks+mGPXFk9F3u7bHDUCujtvam+O6bygmECDEEz+zUAnCO9OSJwI9knYTQqmQhEBzeukZYru/ujEMWG6tnJcjEbQQjTZW40cBkfY6rmlYeeECeG9ICuC+AV04FjT4aBMoHn6RrIZczZ4ukexJQRQF5Tg0p1HS6qDOCqvnagu4PHhQQwf2+ECziMP9ZZWwr2JOjl9BTIKtheipFLZAcRF48zBXCRIN7X1RgYyIVatshqJaghVzdeZUwXU3J2fIBHskYpeGzhnXRTZkRX1EOQ8ukYq4OaecWa0iR17yCxPp4ug3rkOJ4utVsD7RRMeF0U8DWR080+sxcgA7AFRPUK4a1PwTlRijhg/9g8Rg3JsIPtGtDdo+aaWh96JlVWItqh5IuObAm5UqawRzbmTqqI9uxv3EK4sZRVQyvNNCUUmvANkoqLGrHF/zrRtO1pXxkEwJTJy2HfnVtDJinRLEC3EKANkv0QI8c09x00WgV5iBULjBuzYi62HgteZSMR9e+WjRT6u/MSQX4Kakxx2tDOx9V68+WMTeCOJs94TvSQGPwW04uHm2CJTY3xvKwZ8GismQPcE5SYPx9Fsw+rtOsm9Jhq+LPJkhgAneYzzPUiw0ZgKhF8EAyBKYDUMzvr+AzrZZqRyEAC6JBOQoCQxxo9wN9BpHa20rTAOoC8pC77qBe1N7MV4pXgUpENZRHWs2mZy0l+XMkFgxSepiudL5qzXVH9DlLzY0OmTVnF20WSWkosvt4mEdyvcFHAn8yXyhM6PEoLrc2rIXWwX7S0azUSl/evlaHPQb3uKJo3AhE4NAKW0XyIJR7NiRe5OTeYmBsLFWQBM+FVKgURNBFUB9PFqRZsCbhZ3ToRFCPZXJSZvlx5pqLwa5gyuJLiIV4F0Yz5Rwz1lhWP2uqjLVvWNOicglSXm+DmomGctnEG2LNRS4sZhK3ixAidng+dCzLK1JD0JRl8W59jGBs+VhWD2cMYryDUwGdE2Litp7mISoSXHB9q7g+M7i3gTyFRE7Fy2OSc9QfeNE97ybJBIeDa2kwv8ElTFF6slmKIaNTastrpst23l/9iJBRs2w6t8ltgJVMUWQUk1fV2qe/zuySJu4yr7c7RTcendZ+P7rruMAtp4gom4uMQPyRdkzInt05Dv2xX0VzSENEyJ2yjL8dNkpm7bmnb9tEMhJlLetqwQU2qfFcoL5hKP76l2j8JO8LKdowy3xAPh9qCzUEsH0MeDOOYFdX8qIcEGfi1WGhLojhrruloNPA7iJ3DMi+LHfhJh2wqxIgv2ejz0DfPBloMDHogrMRnOI+M4OevaaqkdXQC1KChhZViUU/t0zvuONyQ8w0QcumLZNuXjOaUX8ajrtyT6lDQz9JsI1N4Ird1jZFrA/UE58WGTL8rGGvdFecu9SQxnEW+BchJIpk+gyU73KaDhORFhIPAVC5d1VQEEL30VY3h/BLJStNURhAhkuxrGduWjhyrSJ+OMDOas9zTQ9p+ceIff6ai2x2QupXlZ9+EA5WhvenRboWBractS1eHf8LSbWGtinO/tz81IbngIjJC05z0jnYQHWEYyJFLSBxTmd76zf2uW07g6k4CmgwLKcH0MXBledZZYAnuhFHMqwbQqVEBhGyl4SEbEd5jgUXk9CzJSiIilpKsJcBnviXUJebtStcNyQmQ4pvSOjCy+sy0gSeTjVJ6AUPdlqCKdjmoIaDzNQga0cjaLktyDlE4M2VuHzumcAaRS0bwjIiPggsiA8YuhssPZPdWlNl1+1XVUxbzRRqGAhFciHZuCixmB2mHODFkDnXu79QaiUEBL5Hfx7gs6n5ArjarCazUAFz/PLIhGuUoUuTxun2QDck8hTBRGIZRRpQwUBkth5+FREZ+ooO+3UmLqr5ReFNEFqkk2SYU5ELezxD3eGwH+IehKKxCFBXJOd+eFILY8lYMLUyAKvozw7vhrPFQp73mtrynsyDkNnVTxSYdqFGq9AmiY2d+u+zVnELYCBNF00NFjRyRWjde3R5wwG0LlElsLqYWvNApRCcY1VZ0r2gwz4rH2GtI6Sz0ngRYeaELnzvcEyIGmIx7Zc3lHVZpwKmNE3F65mAQ6RAtbUaKML15KyX1ssPnC7n0EUFK/psPQefZb4XcgXhsKExhAw9Q+Vn1OZbMjtDNuD6WHYcZiUIYPrfkZbLPXRK9Jbs4r5tAa4YaUR+Mcf1rrsoJdrQH3JjLbRxu7/sO0sXds6Eu3kfBsK54BnVGpBXtDsr1tU9TteNCK15KD2DPpa9Oqze/jWhve52jBR4mh0vaUbMRuFQV/drYl/MFH5ppSBY5h679N84SGWaNs+C0adiGr+7ctvdG/iT/qxbOOoqyvDDw8lL2LoQl0guJup+LJLTuUcJkNf4oBMogMdF5r60oRX/Ty188fP6gsoyU6xkVP3rRV+P/+v5ecFzbCi/I1tyT8Z4J3k/e6pJq6cdqshlI3C/4VvXyxsm9fXps0hxrmD2PCgo9vWXhSb3oYtQZUeUUL/h5C88ItdzGkYQtLwj8FubJQSimJY3jZi3g8yNIF/Ns4Pk5CS9FsNl0VCadZ8KsghxJ59zX3vONPQ1yEqyz45edHRcvy9cN26NWkuqnXCB6y4BdF9tjpRN5c8vZgkLslys8/N/5fHG3KR5b60U8eLQq+tfQvfP/5w7eVpQcYGNDvdWHy3etDJLufSeXTUM9ECNsq16mhGJjQhRuFI66zNDN4JpuGmSuHWlZG/w86G5X5p3KgoGEgxwDd6kG1Z0FleFUUAh3MVJ+FqjzLCt2xLpdTzDhPgMzAgLZLnsdnamf+8oa+KoxGWxXb8NpGWZDwcUH4OBikE6t34UGCypzveyNXW2kLj2dajaT3S0c/w+FzQVsEFbr+AZFbvLkxW4kU7OyTTn5WLjohaViL91iQ8CQTyN4Oo9/MfXu4Dw1TehjTbcoYl8nto7cS3duUFfFwc+O7hhFIuNhvXVnHCZXznk+ACXtlrKLa6584Xe13KlMo9fL1O6Bi4kG+o3Hhmn7AZXHwNL1o5R7ICrhzjC7g2wetFo2MiJf7juHzzdXLKMHzDfcVgMIbjzHk+CUoy2DJ/Ok9YgvyLvMDrodyyhPU8ygOEg8dMwJUzMHW29pUgM34gfkBw+Z4undJO/+Tm1PBFfjFWC/1M1BdcJ9WmH5+ZYHzcrPPDOxieFD8ZH6AlUq5OfbhjKbCUYKALn/CD6266rNxiAZeZwa5G/5dPm1znEV9PtxtrimyG/zYsYbhdPh0OJ8Zzn7//18eLNrbN7To0+Plp0Tsio8GXLI2MwO29XTqo/rgwaBhYr/wt8g1g3LShh8MEj423iawtmGlVL01zbPhOtu3zZfdAGn9mJq2R3Oyk3U1z4i2FfdRbhr+9UPCzqNAtluhrN9YxFn//zxdA+DhTthXCCjg9RFkb7zQbAZ5swczwSyRxy9wbcRPEgn3swKiTT9hJZuU1x3cuWQlJuxYP9klm5lydAei4PGoBeME/wSUuwv+wg3sV+QRKOAuoKsb265TAWqGhrH+ihBO34N6Tmp7sG2HyLVSH8GjvwxjK0d/jXLd/O/Nr9yJCARWTsot432Cx8uhD7yOeqd+2lekRgLbyUUZEKAMV7NCvH+oQ1lTNIjI3hqY/Fo/9oshaWE1cUZtB5oq63dKvQ5oO6Xxv2TfijI8X1fgsf9UHofcxD9PO+5aghVyH1G4wFP7KuI69uVTCYuVHYGE71RKWiFqCa914Bjz70wbPtuROr5SRjqHSCehInjLHp9OUmWvTwppx1YTD/ESSiJGMIFopIt1lgCfiv+fHivg2eBBu1FNPp7F/6RBjt0+b6rHxgZqaiH8G+sbGrEpxEZjPTa3tiBObG1uKrU0NzaUWifR5Ck0qbkpYK5ELc0Y7ABNf2qZ6LM1iVpbAg6m0GQs1TeWmn3VEjBOLUStE7HVNl8izt9s/x2DiybyWUKDJb8sDQG7iD6/SH7Z/EKbLGJLwInPJTb8/Rc1IpYmTsbmUsAqBuV6i/vE1lKTcVxaA06bCSdP8tk32GhFRL+YQUl8Jlp8/tA4ZjRpylSc1BwU9Uvm/Mm0NtdTM1LD3/WESA1U/+ffjc0tpca/fv8N/whK3WQcnJaJFBz3pgb6+aJBzBaKAFZQOCBuJAAAEJ4AnQEqaAEFAT5JIo5EoqIhFOnNUCgEhKbvwliQK8byP+f2lYKva/4j1F7r/nPxpz0yFu2r0b7Pv916o/1l7AX6tfsh64/63e7zzEftF+3PvFf7j1jf3n1AP65/s/TM9ir0Df2A///rx/uv8KH9g/5v7ffAb+vv/19gD//+oB/6PUA7Lj/D/j7+u30m8uPyv5e/ud73/jnt0JLPwP/B4XeAR+Pfzr/X/mD6Ge1qAB+e/1X/ff4Lx2dX3IA/MzjhPK/YD/nf9l/5X+O9if/p/2Hok/N/81/7f9P8BP8z/rP/K/vvtW+ab7HP7DnCtqfTvcH2FH6eht1u/b55rm4JeaNpD+EbKL9lpHnp3CD9pRsiJwSdEQuh58dLOKaK/EWWsGDfmEQerR2v1rHzL6qXKu/wdSeQWl7uoHCFGo7rA8+OlexEvbz7F8///k67qiyxL91uzJT3THr081zBhMyJ7DziomT8788x+1P1JVaG47OoIH+J5NMY1loi5GqNWwxDUFDnZkm1BY2eMpMCunUiXiKYfNvT0B0EOeah/eekYzJvEnpZY1S7nbB/zpXKltjd5pxoXItkdjN//uUg2cewlMVkAXULN8TbKuVRrdPc/+2Ac9sPBG6eLm+9q+CdxhlqwbhNdFP6NIZpyyO9M+61Vjk62u5a748eSDtJgsDk/o5IF4sIrMqcbFv1aBLPs/7Ihh5hS3cTyzVBcdwIE8dj+aQ5lqkkewpMTVR382CLGD1zsMeb3dDdd4HJ/ReTMWcs2BpI8dh4RnkVCEoKjX36U4HsEBzLD5rXKuBGiW3i8Cc3+9AHs6N15tnfj2k1kbGtOmIsxJsGTOFC5QmbEVkGZ91L/a5NvFR1du7MatYN0k0QWOXx/Cc9XsY+ZcxaIj/LEJ8zUYxCtwcGBaVd+/SjbnKrn8i/0W+v7cyNQsofNgvEd2XYSfem9UgktwyQsfNWjkNukPMrCSzsE0MntOFGdhrLm5du67+7iHN4kTP3rudiR1LrmuS4LkxiKLeoXPfmZlhErCditmOkBkdKU0j6JcbdMsDZD1Q+ld52DXF3Q0+jlX6K5sACsyirunpg1Rl1YNavs7nlN/MAyZRcf4VECA4Ul+NkNDo2a9gRqWrAy6yjq4m5tbcHVV2QRtObF+rBwNVxA1OBAJhwqyBu9s0KH8bJsJaqMHBi+neyZ6uDciEUc1cuz9OuB7dEmvun0VvQM2WmD5v4ifImt3SekKc10gi8fDfhqKmMJQnpuwqTxTbcu6y4Wjqf1udzuscz2k4Pazk37x3zB893yz/wpy1wfvSIq97Fogr191MpOJI3LHf9eSmw7U6N/BFaSrWVA+zmSL70yAry/vsuae6wH38+PhWkWgu2ESTinGX9xXt72nvFpaGQ+sEq0IG/NzBb7vEc5KyN0+bjNefxxJpdsVWI6axqVj7ZxQ89V3ld73/oK4I9jVBcHhf/rM2XmIr8aFpd9/g+0GWo0UlPx09YuQogP7JCJe43Sk3uIdLV6bc3+zIzJpIBcmqD0bRXjP07xn3WMEUx2PNb0/85wqOb8EQPHQEsL0gZv/dn/iESA26YiIy3ch+tDTM/QiTh/m7tLoPnQ8BuVh8t6e77UWr80pEg1WeHCMW4VtQWlXHZaaR24/7knXyiJiRPvPsbfAXc+VCAOZpgNaOm1GiWzLzW4xRcjc8Q57MXd9vWAAD+/gbQAA8/5KMPC7iS5wNKc0QbsRW73yzWqBWHMFiur+XTO5RU9ONnDRR61F0//g0uEKxOAtKYKKzcrn98uS4gOHdHdMsHrbZ9sCEZ6QEKDtdx5FM/KLOpT2edeurAtN92KuG6YJ/fI/8Y5LEGAWrOgfGmZHaYtlolknMKrodJeAyr1gnK4rNtnl2ReL1+i9QVe9lWywgkQUYwa/5hCXmEccNxKUMh6tvvSPl1OjoWlpvqVq+x2cJMa1xKc2H6ojSIh6WM6uH3D/g6GQ9EorNNksXnHGkEDZdFITZbYOPw2OenIFjCVNCnn7Iph4ZHcSHE+4PJlJSHX3C8i5C4WaF71DRgnqSR+EQrkHF8R3oOlm+c7fimqVOOJhH7M+Z1VoiEgIoUohxpN0a4WaYG/VTiFVWZ0O95OVIXYmO+A6xZVEYtiUv9IS8wOZEPMCMKsX7zsBVnYSS9pz8N1OhyX3ALTl8yl6MNR9/ThrdrUyJVcsYx6/7FtleodHjLumjLa8cOELVKD79wbhOqssOx6mAo6bcWT3YarJ+RHLeGdWhNZnSjOygNNg3q6wZTyr+CL+Nz4jRfpyvxuT8L2VuMsQlBj1IAAAAAFf/ShlCFaPrDc0f8xLI2MJQMmYsfvDF5dSAJY4E2BcUh96Bhs2NE8PqCCGFm/WFC3Ssi5HD7bc7SuoASii48XRcUHMHfswhXKO4i4bGU7legSFBdFu27jl6oxyMmw6XqciRBw6AHffSxdKyEwGETUS6jOYVtHg0gLhE+ABMoWEPafdRkcGYBWSXjd32qAvRG6Rwf/Cj6Um62gZPZ+z1fK3uMAdj0DIObT/2MlIOKRWfBLFxB98noA6B5m4TBc3W4q43Aaj/Ej38ggZOlYWnfdJLNaJzFGLjj5hYhDl3RCAiPyS9frI1K/z64gYe4yk4/7MfFjgqrLIJIrxcia23sSeuB6MwhH4TGT8Q/wJN6sd/6eUuluj4xHJVEW6WwhhQWWRIAAADt/nFKw9HnqjH9fHUPi3FnyFCW7RolAjvR+R1aMrxhfGm0KdrvUvDyImkHvs3zOGyrxv123WlJedvPWyhVCO2vtUsziXggffA7xCi0LPa32qYDFXJctClVUlHJvePbvJrVgt+XH+zo62YPPz+5uIJDwHsbR6w1aGSx/7PzLrRi2bLF6B9/Zc5oywB3nRrI/46kBBfuzEXpUib1PzaJF+IP5vVC4miEpLvjCEmx+enPZn7RablLe6RptgtmOZhaJRsI89zELJae5m0jLE5HhZkGp0otls/+akiyIm4NPLnUZNVyDLRCqDu7VMecUEhCvH8nCeljRzov2qh+EJ5J/tdGD3WVtwlSb546Tlkq4g1Jyzn4d0QSwboivAqG3KQJvUuGClFDAVYAAEv/F/C5qEg0AZNE7GnCFNvnx4d6GeBUY/OQvU1sAAatCbKJlr1JWA/rpeRGq16n/8Ao8gtsTv8HBzEBiPdx26m8r7Qh+fmXxughX8r7dOPe0S3+tDxUnYwimRuDufXtjpFy/z6G6QxIaOoDbfgzscaxD3eqQurqF8aVlQUcedN12s0K5j95nFRhogtwk5Ui/uRi5tBlkoIDYRPl3v0f2B8WsPcAAc/3jXc9gEBY+/OpiWJA1uMv9iXDhfh2rgbn6Gn2uFFtwotyEV91cH/FTJD2gJKSBQAIuLXzh4GSleqHZ7/uHJ/5IGoABk/yDjb/Ju/8ktedcmgjTq5Hv2k/8TgqXaeqfoxQr4r3H5XvHQaDDeEL7rCBcABQ5+apNY2CykqptqV7CAKfeXwegSHBMy/OGSU6hqYSdQfy6QyxTYfbXUO7dg94fzsJ1QK/ntvxnSnM3Qt0KXYGx9kz1qQ4EVnL6UpxhqypMZlN/FeGCNEvI3wekiYs7k/wUZEgFVeA+VYZFJhwJM+Ui5+3TsCevVg2GCumGvS/1Q2fuXJGGsErigHanbfnqoXTS68WV3dLbYvAIOMXjFBAN4rOOccWDrEsaHiZyaUvmRyImQL411D/Az6zNaDXnTnPpnrflb/NCUr1TY6rP/YfZBTt0te/myScxLeZ/By9XtL8/paR3r22LFr0ucvZLEWsH841dfaeUuT3XddvJe3bHf/eaOREhlq8UquFAk7g+MH5I5t41P2tlYsQb9uTzXuLp6ieh7dN5ESzNMcgyr5uMZMy/AvY9Dyi9MlCDQgPSzwuh5jc+jpUWhih1OXyPYRTO6AzEKJj/UDEicDd0jJhxIR3bus+5Uesc1l0NNQtqrMwSpk2z8BpnxgSUNyL93hpIUPWatg34tubmqt/xKK8M4VhoSipUkwqz565zTiqhef6hS43WKFdXDqFS5xp48H/FR6gSWjHL+XPcP2Z+Gau+JrnyJgV/9plU4ZOeU6Q4t56/I6n7RcJgiKusJk3s4aejD4O5FWrpvHj6Q4yqsEdF2Ya7rsXUBcV7D06NqYMav1g1mZiL8tIa0LDyHH2YylpFP4YkMDNUiBE6rP4v1o+cFpNIksBrE+VIDXeuGyNILtMqUqnSnyB//pR/39f/5WCkKyLnXO9KlMrqfeoBiW3pghv8FNQz/MzYXMy6GswpqdupVmY6cV/iOf5QE0oLlzKTr4DfSRh0CWa9V8T4sZ8VEflx4gJreB4HazLvu5MykSjqTc1o+YR4lJS4pEd783Sc0Ze+30ei/JF34TE93UwN1ZcKjATe+Tr3WNqmD7oB5m1g8dSRAtaLDQFdADNK7DqbgFjywMphhls5AtwivV6XSMFd1VJ9fdLj4G/gpbmV3Uw7/DPsBB3J3mQrIXvuxtbSdZSBUwabKZ7kRuTdOuUbeUjeqIImjfM4jGOkV70toh1CqXGr4UFp2KYXRJ0TdX0knSp/9gNezzKv31ePo5AQrPy7FqN/eI0FX1xojGKOKePI+saqvNF1Ol28AJFjAo2CsXT4RQ6A816nnDhK3SxS18rOr+eqOt3I3J3GeBbvDv6YfDeBUYnpvrViDn0F5DPpYTs1jTotRVBp+/UyNBtoRGJ0levKJZUudwbL54gW50mqbxaNUBTR7DdbEaxd6x8mWuQSNxj9afnSfnSiOb8DKNfC5MkKAV44h6qq2u206b6GBWVTrx4KcwHnjwGNACZjj0pQulW4V0k0zFUPWzSFPyqJOL4DHaJASMxakmgPTNTQnnX9mfD7yFfM/PRh9vlrsiUEVfakFk/PrcUOkW/VIKUTmqd+5EQqecESI9wJQ6HK+HcCE/xgasErX+1aRqZc/n2Gl6wSy4kxZDOQXYLBxXKtOOKreAXPCWLI5khvS7SWvTBdRduKBVpWxl6voNHC07RwjwZMw1JrJ9gon3WcmK05ZpdXE0GhA3ggQl76DdpuXaQ0tjh2GkSrKTRpvucPnZSKWlSy8Haa875RWuiRPNeNMx5NJN8SFs5fJYI2Tcw/TiVlUc8VKubYhQNDp7X+1VwZxP9IyPXyvdRlJKNqzTGTdTO8o8ZuBC1qU5ZOn9/eeau7NjQMQc8gZJ4K2mFJBVwiM9FJR4H6iftfm5S3YZHkwR5IXp5N3a87eDtM5uReTuHcrnR3dGZi/5EpV4ZnyWwbpMhQ5rcxcb2BFJ6Ab+YW/dsR9top2G71p3dopfbxs88Pyt68L0rQqqUBAsxLI0V3fBVKpMen2iuOWgs0kd+XrJpldjGChLJOExpVQw+I11iQlu6yy48MByj/jiPTucI6VwlS6X01x0nngrJ99qQJlfpCLRruf+0WFXeKNqGm/1NizLU21gey9Y6tpPgOMn3I1te7/pRiUT3XAMlrOlSBdykWlaGg4DH/rYYPKFjnZ/if8+P/8rCx/gv/90FfuuaR11DuVCOeRhTEyrp2RUzb5Ere8r1G2x39KWKgFyq0MWHLbM/exOI+sHT9/Lza35Pl8q25YjbBnpsFrRTH+ZJqZOOosurThY4QI87s/QKYpz9bwHU4ur9nqkNDBmN5iLyMIZZp36vwtBsCrFwXnd0+bVHPgjUweGTN1npCzxRDfZeJ6f/l9sQXKHR6AAhMYMPAOUdJZMZeA51fmCC/4X2wbpsP4OgxFK4JU5U46cKYg6VYpUkLIROYZ3s3lOKFtZ4EmR2M6sZU9hdVeqYmO6mRweT/yD/t1MprzCwZuuLv7ZfhX9V/AqLZ/DskeDfSGjSOPzeygRn5kZ4rdX0J5xiTk6Qs8swCXzUhsoK9eeJdWh0MuBtFXqM92idgVCHEZ9epWn7rlrJPPZhzZu1iGof90s7/4zZ7qi8+LSxtuMVKcG62CEKtEcsR3Vx8mK7wOE1NnIvVWrY7Rwu9urOiezATN0/AH2alq2hR6XSHfS/jg2cNJ1ORsEqjAFF1eJ0sFOlyd318Epmbq6caAs+YntV1g98ScUqHVA8VZauYaIz8HO6erKEvXPYPK0hTWJdCrWsDE87lYMRdjo1x2zBlerUJeTS0PLL4KMytWE9ldFZExy43v5hdKlhoGVspdsti6GiJdz8etxKw6H/BflrKPRiu5eBrD4R6ARUvpoJ/K+DX6WM+A+CFTLRlbGvBhSoylbZborIi/heMicLpPNjkJ2TSM9m6fubI5SK87usF1pqVs2YvlmjGv1t1SqR2cUPiw9ASjWsBWBaK1B8sA/vXgysoy5ZEzx40bBJ9dm54OjvowWZTgEZEN9oiF3+mj9t9ZCYedtK8k5WrW8pDagqjT3yAinRhvfIjZiuGY6MY04Z9fyN0p/PUvwt5wFMaQ0+N3C3stpiBfQQPX0JVrDpfD/Y7UwIHPWOl9Bbgtw2lxSUdybKA4JENS6mjNqixqrlFOT0zupxtrM+zffnGrJJz5KAsBHZlgb52A6iwQyl1dPnDpFQIGH2K2RXCFFY4bjGIv/oQGUOVh9k7yHmO1ZB59um3aJ3hnnma8cSyGu50CYO5IlktuvKlCfgvZTaF97of5bNMHSCSPaIZ5qAzrTGQmA+yO0j+402en9IxWq6aK5biwY7xE87lEg+Nd2iqyNSBV8aMzeodhpQqnupRCtjE5EVuq63N/zzKPaCDb3rdIwHAgD3ONcn7SukekIzLsX0VG7z3Xv+14cujtfc3BSubJGv45GCiyh8lHjQ0TYxHjn+3RaDQ8ZkzyayBo6iBLMeHiSWJ5TZ10uSP9O3W1psAy5GDE4ThaqQyUVSuAeom9eIA3AJFpH2kpr2ODfY3dx+nxfkaEABSO32JjoDtfu+Z6H103L6i4bgIhHDLKsDeMCpPmVgZ3ahA9r2bUkIetu3lBT3N2AE7w2wzWLnKeKFQKiQH57ZFMS3Ik0e08CMaUe8KlkRd3+F7zrn+tTipkoY2eTNGL3HKGKRqnwLl94hanHjSsoaW07MkuDLu+1J59PeF/QdSemh1H9PzLLe8ViIgnGz/4QUocDjt/xlAmRbmAQ6FGdA7ytnNZl73Vi+wqx2P6fMtfNqNpg/Ol62e6zKeuwXirf0WtsaoKJKGrZTpuZrUCfI5k1v7SnYi2tdjmNDUBIeWQfKp9/w0QqxJN+Q7geHzJ76rAFuNZygJUM2f2DiTyoTBB5iS9RCSyB7PsIBx/bdSOYpOT7oLkWxMkA0/f2qXkK6t+MNrZS9UvswjsedJGL2k/1Rdut/o2Mh98aZaMS4MdiEdFXmveKbl0sQMo5Ga8iEmyS5e/NxHbA56A32mqwBef8FMwwo8+b5SQJMonTbXjhZYUL+nr0yXch3XOL/UvWfW3pSKJdUkTiNIM4zEuS0Hbe+bp2IDbfuwY7kqBFBFQmRvzC0KnO0bayne2dcbj7dO9AZBbeIMZhdN+BkeJvOy7Ww151ezoCnsIWwlYMUL3PDznaI6DKSn7RxF76odoCf9AAkpkaiZmLQmRqs/azZciKfr4LIpXwu752e3HQxg8+HTVxQKDvDeX90ByUGD3i88tVXYaopAx62l0d20W0VeHzilfk/IeV14+38hW4mSm/tA6WR9MM2OpqHj8jzRHEoYxssfQvKUT0R3BdhA1HqgV/S1lHPIDf3EDegeKbskW2OWExEyuOw4gQaMJSL92d4nklv/99WeFlo0bAsrSQG55kS239c2DlwmkmtSNxKmFRdGjDtOIO/qnYWYcN7O0Y8W8Qt8VV5th7BHK1zqgqvusd13HzHp8QadLIJ11UzvyNtANv2OO9yFpIVqCOJRw2bJsebZmVw33TLBdrvCp+80FhJMQlFHL4uC57v6aG+mYxciGF9OxmK0dWK5EQiOIn2GWplZLfsy2YPgQ/fJTYadto3XV5n/DHpWsG5pcsN2vgGcKSnRYQ4D79FnuOZgHD4397IIN8ZpH+/sKc/ABYrV4/HOfxLTwa0/C5CdJaNQz0iUOGdRDriNnQevsHLm/FHiy3VShyN1qsH5kCLFIcM2aAdJAIN3NUcc18qrI5gwE8sjFukDaAuSA7Gba3sJRWONnlXpAyJyB8anHMGTZm9sTnKAFZvQ29ZjvtQy1L1S73BNZg/yvxGBCBxJCY3ZlhNfJ0YnFItmrVauSJ9vU4jKcj6LyKQdxS7yWn93UEygl2LAiReMMziRinrvTokZ6XVCwfYIPR/lPz6MYUrWm9254faFWxeqvvdfKc9mrPRpuRdF5XfgyZ+N69I1CHf968IcmTSGp41PsA80z99ioL62uxMJfhSTdnvGQqIkD/gbtoxptCwqvfeXEFhNN+jl3aZ/U68In4whbLFMC1B4WLdblkKCsDwodwuCkY4vNUZ6jN/kBqOM6pbx/5iUOtARZr7jNr6M5kh1Qr/bPgLzn/xmMOryL4IuAs7SxGljYwuiUJd0C35z/dtdQYrgkjf2gV2DKxaA6Yygw88Ob69GdOxw6K6hVuQfaFdh9qyDna9glPBN+c/y6UkZtjmw32bfcmrhn2OYq/926mYf1Bz8KQYf9ciopylxDOVd5FcfypsyW15ZGKbQfsoIbqbJHLTxZNKELKdp6xqVB3GnhdqNyQ52wB8x/ZozcXHN8DSAfTzbUs5pLRjHuPCt06De5zS3PVA0Aiq0/VZJZpKnSma8FTlvfp66s4UiUthnZLV5lUHwg7wFrjnzLLJtRLEeo3w+CNwct4ZbOXyYtzku98FrOWuGrmOXGIgAGRdJ6hl+oQHBsX0ehTyh5HOSzIfejbSK9Z1pjD9ymj8GgzhYtQj62UZkOPHVBdFthwse477+KkG3vS4MfqJ4NwgNXG0OU4CmzB0Bbi02K+mzsEv4gsm9fYzlIDC+o55w5Dpk2quVc/NLBgxwkcg44HcGnKW/wRca9EnL2SCHD+GYYf3IpQelfqiPljINzP+1wf/5VeKYUv9Wh/7+VfvoImmUawDTDqEf2hiwDQD2c1zkzu3o+JlgSzuf7d8j7OoSV6OnuGeqC2if3Ldv/50Bq9yslUyfk+kxb1i1eLiaGt2ftjAb5tVZZA3695/PVmMNi9+TQogdoa7zw4K4Rm6FoGxC0HmesjAGN1WPS4kRh7hk/FrrYI2uK7TswTnki4L+fb1D3gs4ZEgjl0K2NOYbRsR1g7olSWx/WC5AdjmHXnbRMnhCNOxTuz2NZTvc7T3slKKZzaZ1aJJT4Mt+7XWXCs6Mq0E4ewL3JVySgqCquC0yGAj7CX2rUq9vuBmzgXuqm5C6csncMQQU+H7M6UrLoLhOcHqo2VyGAt3JG88+6mgC/pxhzWYIfu8nU4GVquwSc+dDGR4q075VTQXEqfp86jVRAuAGYc/9rEeh9wkm4xSDVzbj8kJJTVS7NE9PKZ1S7847m4tqHt1nuKkjijUXkMBygXQVwYq2xmavMJo9w1dHdS3/ynPhzoQQv5WH8mtfyJ5Ze//6XTJubT8qFPHSqaBYciHxQxt3NCXfCTHrTzddZrvxz9dw6LmqokrL8dfhDx1eRxZoUSaoz2bUNDOCsgT/7z89PkurihEsWZ+fLV2phOJDinC1SU9HsH7j13AajcFSfOL5abTM9xpuz+1iQ2gjKWKmQG+xut/1rAPWJOy5iGWl0IDkdb13vrelw3wDW3foVsyNbRUGcOPWmEcfmcZCk/dvTO/OC1A10WU+9hCLMaPL2C+e4YizBsqaRXZu/ZpWgsZIyOpRAfPsrXmgCVFhqRJcLqlH8QM0LNVLlu36zvUfO21GkoqNA2XwtutiFi3D5Bc1wjlCrsL+hO40j7Dfn6JfIexcm054khnh5wie2XxjmaGJvZPkwnBTrjXRs5rb+PVBC6ia0b3FuOVYQcwWbFYRkWazLCqMl4aexYqtYXYpUtGM/PNlfuf6/JDE8MWMhDmf3zF9Tfg8lb9QOr8A5Lojf3u7N3FcEOQQjxOA9T0P7QX2Sj7OlG4vFIfskyY8TJvmhsNhS+HOXIWz8hSiUO2fR14uV1PKaEqJbtIWWcoaAUlLIfQFNoHuPATtYpvWVwJtSzL2Wkd9Rc7I2qse/V0I8nMceyK6oTbNkNlxHuvpet+I/ASRawcRfVkrtVkZASC9qvnHc35LwzECH5kfnEFFVahtJNdgw76R1sfLFlJw4lupuAeh4qNDcih6Gnl9iCOrJt71FEGDrKFiiA+YeIVc/x9+/hsDtmU3R82wluFvzQjr59QTRCQ/3xtGO0DVNZCZb1mOStkx/ukwX2ablZ9wyxvRKSWsmJH9uVx8eCu8WceL76BSJhP3TgPSFvrufEGrtOLxRCfgn7CLX8NKFSe0kDOSTLXXZxHzFRQHYRP58SJI82lIh3ZjTQxuFcJ4/+389erTNsB+Z1WM00kSVTPvnt9sg4mMvykCai7cgkcsQoRNm9KS3W4PcdZMBiicZ1ZdtwJW+gn7/20GiBKiUNr8INmC3Z8iT9VnhKYCVR5hTMHG+j2kQG5H430ZS3+j/t9Ii33gBkom5cjKeF4PHB4u1NoCjBuAmwtij9bkpgfmnKiAsi1+bhYdI2kJZMUhsZo1nZcHJpF+Xm0boZlHTvvo4+bc6JNCXZTBKe3n0WVzTZbifIf4Mq2c+8RhLx3V7hVjwkSs92PEsvpOj3TROETtK2lHAahir986cUQFPJXo/q8lWrrYDgCCBTUh5XtVxZ3e7UfXlmZnZ5JbKIIFwAAkxOvsAZ+iC/HNfhomrpaCY8h2JbURCAMgjcHuXN4zfZQa3i/Vp55blyHcEPfxvlBqb/EHca+fETU/c2NwrmaK56imb3W4GrmWAEA/rG1o3bZ7rDQ/hqQwtBi7aH3wHJl42xTuUKCITP5ccYKMICElnWlVoAFAE+/QTRI6uiEbzWl7jKwqkTU+ynGWWwNddDVh/LYAm6FB2sE+HlaV4ZdqlCaMgjQw6jnVzhlCxAve2644iL5CCieP9j763HjBldkh8BejgHQZef3sADL6+oyj3kwrkCipr0Py9Q7n+f3bdj7f1ZHkiU95m1KCg8vVfX7cMEP+Dbu14sdh+KXRiEtO3hQXh4LkkXLlprOkmx9fPb5j0kv3EMhWEGlgMXOSEZ4l6/p/tUbQa84tGvSedbBZtSz9cSdEmqAvkKR/igBakvjc0HuVPi01geiA/rFKIe5SlGo+3iyi/fTHfzbNxlERwdmTSYTgE9K5w1ou5CN5T3xcXFof+6OmVgp/CWmt0yHF+SyZxxWMybNqFdr6oas7+IRF+YRhdGgO6dvU8bHIG3NEwnH9/zo4MAPhzXnazddFTqsVqzvNMSP8xS4GaRevG09rpnEhElFEDC4VvkLnu1+iyvSQlnR3o28AiuXeogjyjzhF8JrDmIiXmhDH6ul7ELtrHid241BlOm6T3zdnl/ejdd42h2MNJtMKpiyumKMudo038qB0Y8tMq86HokTVoRgFFVZL7S8GpRlYEZpxuvhcBWlIN24KmASzVgGwfAwfzXnnzUxNE3th0MdPYCFz6mlL/Xi0EDi7frjY4/0nQtgk/RDhVLpwJiaLMUZzG+svB+AFIXOVZJRxcHmLrFzgi7H6fKLWZfwCwznFZEwZrRiP//f99OGjpeA8z5uHlcZfNGL3RV7DBlshSmsOKTuI7//oGZmh2ALLJWXyrAvE4puSY+sfEZCLhy44E8baHRPa04y5Qr9Ay1Ui3RKGfDsho8zcudMeAID1nnAtPNuXHdoDYN9kMfne++E2IJ6qCx1F8B7r0Bh9AId8DqW52SpOw+1HspiT1cPFnRkXu5uGbX5627zPrTgSnrEzphm/PfPJNcLxrTWAmd9pJ+tbDOQjyvHPBaNZKVocecgs1SwIhpM8C4BaO8ZZLECR+9pl8W+F5UzXLs9P1P02Ben6sp8p9WT9za+oijq1D4Rx/rPGy1wqgLVGkQ5chLuKpV8eB7eGrAu/1rLg26fTGIvVB65D7nTpzkK2jnw4xyX9XpFAz4vdBM2try45kaxwTS0RNDfhLu3cVYetQm1LxVDEK7fFOvyHI71Sx0LAzKo1aDcSFmkhicsZtEXAJMMSy3ktC2dbbc7Z4jxqVFM2J6j/LD9wPZ5gCAx88j0at53H27SUgSIASsFDjmGHe4Gyuc7PahXX9DbIQzs/A2f5eU3cxkN+B8leVUS6blk+11/7zXuJCUeqdUnUbVk52v5TE2yRAjcfzmD/+h6hfPdezBNwTN2TYquUnubwnQ549CfEpeurH8wI8X0MAbYJkbOK2pf5DDzbGf9kxjVN1WV38UWPcgMLadis0tYWbljDMU2+tjwssi3E72whrGd4AYupIfz6d4oprKoT0m/OJiFNtBeiSpT4wlhCR0AUNTnbgYKW8l3dfCqSIbRdTxY6DJY7/c5TUZAydcQYAd2E/Tqj2yEwSixcY6tIr/3Xryjcp7nzND71rcDncbzYrAiq6UWvXxA0J0mVEzgUqtkAAA=" alt="" width="360" height="261">
+    </div>
+    <div class="persona" role="group" aria-label="사용자 유형">
+      <button type="button" class="pbtn" id="p-student" aria-pressed="true"><svg class="i"><use href="#i-cap"/></svg>수험생<svg class="i chk"><use href="#i-check"/></svg></button>
+      <button type="button" class="pbtn" id="p-night" aria-pressed="false"><svg class="i"><use href="#i-case"/></svg>교대근무자<svg class="i chk"><use href="#i-check"/></svg></button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <form class="card" id="inputs" novalidate aria-labelledby="h-in">
+      <div class="card-h"><svg class="i"><use href="#i-pen"/></svg><h2 id="h-in">입력</h2><button type="button" class="iconbtn reset" id="reset-btn" aria-label="입력 초기화" title="입력 초기화"><svg class="i"><use href="#i-reset"/></svg></button></div>
+      <div class="card-b">
+        <div class="row">
+          <svg class="i"><use href="#i-alarm"/></svg>
+          <label for="wake">기상 시각</label>
+          <input type="time" id="wake" aria-describedby="wake-err">
+        </div>
+        <p class="err" id="wake-err" hidden></p>
+        <div class="row">
+          <svg class="i"><use href="#i-bed"/></svg>
+          <label for="bed">목표 취침 시각</label>
+          <input type="time" id="bed" aria-describedby="bed-err">
+        </div>
+        <p class="err" id="bed-err" hidden></p>
+
+        <div class="row">
+          <svg class="i"><use href="#i-cup"/></svg>
+          <span class="lab" id="dose-lab">카페인 섭취</span>
+          <span class="hint" id="dose-total"></span>
+        </div>
+        <ul class="doselist" id="dose-list" aria-labelledby="dose-lab"></ul>
+        <p class="err" id="dose-err" hidden style="margin-top:8px"></p>
+        <button type="button" class="addbtn" id="dose-add">+ 카페인 추가</button>
+
+        <div class="row" style="margin-top:6px">
+          <svg class="i"><use href="#i-scale"/></svg>
+          <label for="weight">체중</label>
+          <div class="unit"><input type="text" id="weight" inputmode="decimal" autocomplete="off" aria-describedby="weight-err"><span>kg</span></div>
+        </div>
+        <p class="err" id="weight-err" hidden></p>
+        <div class="checks" role="group" aria-label="카페인 분해 속도에 영향을 주는 요인">
+          <label class="check"><input type="checkbox" id="smoker">흡연</label>
+          <label class="check"><input type="checkbox" id="oc">경구피임약 복용</label>
+          <label class="check"><input type="checkbox" id="preg">임신</label>
+          <label class="check"><input type="checkbox" id="slow">느린 대사자</label>
+        </div>
+        <div class="tri-row" id="tri-row" hidden>
+          <span class="tri-lab" id="tri-lab">임신 시기</span>
+          <div class="tri-seg" role="radiogroup" aria-labelledby="tri-lab">
+            <label><input type="radio" name="tri" value="1"><span>초기</span></label>
+            <label><input type="radio" name="tri" value="2" checked><span>중기</span></label>
+            <label><input type="radio" name="tri" value="3"><span>후기</span></label>
+          </div>
+          <p class="hint">시기가 늦을수록 카페인이 몸에 오래 남는 것으로 계산해요. 임신 중 카페인 섭취량은 담당 의사와 상의하세요.</p>
+        </div>
+
+        <div class="slider-h">
+          <label for="adapt">생체시계 적응도</label>
+          <output id="adapt-out" for="adapt">100%</output>
+        </div>
+        <input type="range" id="adapt" min="0" max="100" step="10" value="100" aria-describedby="adapt-hint">
+        <p class="hint" id="adapt-hint">지금 자는 시간대에 몸의 리듬이 얼마나 맞춰졌는지예요. 야간근무를 막 시작했다면 낮게, 몇 주째 같은 시간에 자고 있다면 높게 두세요. 교대근무자를 고르면 30%에서 시작해요.</p>
+
+        <p class="form-alert" id="form-alert" role="alert" hidden></p>
+        <button type="submit" class="cta" id="cta"><svg class="i"><use href="#i-bars"/></svg><span id="cta-t">분석하기</span></button>
+      </div>
+    </form>
+
+    <div class="results" id="results" tabindex="-1">
+      <section class="card" aria-labelledby="h-res">
+        <div class="card-h"><svg class="i"><use href="#i-trend"/></svg><h2 id="h-res">결과</h2></div>
+        <div class="card-b">
+          <div class="state" id="v-empty" hidden>
+            <svg class="i"><use href="#i-clock"/></svg>
+            <h3>아직 분석 전이에요</h3>
+            <p>기상·취침 시각, 마신 카페인, 체중을 넣고 분석하기를 누르세요.</p>
+          </div>
+          <div class="sk" id="v-loading" hidden aria-hidden="true"><i class="wide"></i><i></i><i></i><i></i></div>
+          <div class="state" id="v-error" hidden>
+            <h3>입력을 확인해 주세요</h3>
+            <p>아래 항목을 고치면 결과가 다시 계산돼요.</p>
+            <ul id="err-list"></ul>
+          </div>
+          <div id="v-done" hidden>
+            <div class="hero">
+              <div class="hero-h">
+                <svg class="i c-caf"><use href="#i-cup"/></svg>
+                <span class="lb">카페인 마감</span>
+                <button type="button" class="info" data-tip="cut" aria-expanded="false" aria-controls="tip-cut" aria-label="카페인 마감 설명"><svg class="i"><use href="#i-info"/></svg></button>
+                <span class="rb-key" id="rb-key" hidden><i></i>마신 시각</span>
+              </div>
+              <div class="hero-v"><span class="val" id="t-cut"></span><span class="cap" id="c-cut"></span></div>
+              <div class="ribbon" id="ribbon"></div>
+            </div>
+            <p class="tipbox" id="tip-cut" hidden></p>
+            <div class="minis">
+              <div class="mini">
+                <div class="mini-h"><svg class="i c-mel"><use href="#i-pill"/></svg><button type="button" class="info" data-tip="resid" aria-expanded="false" aria-controls="tip-mini" aria-label="취침 시 잔여 설명"><svg class="i"><use href="#i-info"/></svg></button></div>
+                <span class="lb">취침 시 잔여</span>
+                <span class="val" id="t-resid"></span>
+                <span class="cap" id="c-resid"></span>
+              </div>
+              <div class="mini">
+                <div class="mini-h"><svg class="i c-teal"><use href="#i-bed"/></svg><button type="button" class="info" data-tip="risk" aria-expanded="false" aria-controls="tip-mini" aria-label="수면 방해 설명"><svg class="i"><use href="#i-info"/></svg></button></div>
+                <span class="lb">수면 방해</span>
+                <span class="pill" id="t-risk"></span>
+                <span class="cap" id="c-risk"></span>
+              </div>
+              <div class="mini">
+                <div class="mini-h"><svg class="i c-mel"><use href="#i-pill"/></svg><button type="button" class="info" data-tip="mel" aria-expanded="false" aria-controls="tip-mini" aria-label="멜라토닌 시각 설명"><svg class="i"><use href="#i-info"/></svg></button></div>
+                <span class="lb">멜라토닌 시각</span>
+                <span class="val" id="t-mel"></span>
+                <span class="cap">처방 시 참고</span>
+              </div>
+            </div>
+            <p class="tipbox" id="tip-mini" hidden></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card plain" id="chart-card" aria-labelledby="h-chart" hidden>
+        <div class="card-h"><svg class="i"><use href="#i-chart"/></svg><h2 id="h-chart">농도 곡선</h2></div>
+        <div class="card-b">
+          <div class="chart" id="chart" tabindex="0" role="slider" aria-label="시각별 농도 살펴보기. 좌우 화살표로 시각을 옮겨요" aria-valuemin="0" aria-valuemax="288" aria-valuenow="0"></div>
+          <div class="legend" id="legend"></div>
+        </div>
+      </section>
+
+      <section class="card plain" id="sum-card" aria-labelledby="h-sum" hidden>
+        <div class="card-h"><svg class="i"><use href="#i-clip"/></svg><h2 id="h-sum">한눈에 보기</h2></div>
+        <div class="card-b"><ul class="sumlist" id="sumlist"></ul></div>
+      </section>
+
+      <section class="card plain" id="detail-card" aria-labelledby="h-detail" hidden>
+        <div class="card-h"><svg class="i"><use href="#i-list"/></svg><h2 id="h-detail">상세 분석</h2></div>
+        <div class="card-b">
+          <details class="more">
+            <summary>모형 요약</summary>
+            <div class="kv" id="model-sum">
+              <details class="sub" open><summary>카페인</summary><dl></dl></details>
+              <details class="sub"><summary>아메리카노 한 잔 더 마신다면</summary><dl></dl></details>
+              <details class="sub"><summary>생체시계 · 멜라토닌</summary><dl></dl></details>
+            </div>
+          </details>
+          <details class="more">
+            <summary>시간별 데이터 표로 보기</summary>
+            <div class="tablewrap"><table id="table"></table></div>
+          </details>
+          <details class="more">
+            <summary>계산 수식 및 모델 가정</summary>
+            <div class="fa" id="formula-copy">
+            <dl class="formulas">
+              <div><dt>반감기 감소</dt><dd class="formula">N(t) = N₀ × (1/2)^(t ÷ t½)</dd></div>
+              <div><dt>속도상수</dt><dd class="formula">k = ln 2 ÷ t½</dd></div>
+              <div><dt>체내 카페인 (Bateman 식)</dt><dd class="formula">A(t) = D·F · ka ÷ (ka − ke) × (e^(−ke·t) − e^(−ka·t))</dd></div>
+              <div><dt>최고 농도 도달 시간</dt><dd class="formula">Tmax = ln(ka ÷ ke) ÷ (ka − ke)</dd></div>
+              <div><dt>카페인 마감 (취침 전 간격)</dt><dd class="formula">Δt ≥ t½ × log₂( D ÷ (기준 − 잔여) )</dd></div>
+              <div><dt>혈중 농도</dt><dd class="formula">C = A ÷ Vd,  Vd = 0.6 L/kg × 체중</dd></div>
+              <div><dt>아데노신 수용체 차단율</dt><dd class="formula">차단율 = C ÷ (C + Ki),  Ki = 20 µM</dd></div>
+              <div><dt>개인 반감기</dt><dd class="formula">t½ = 5 h × 흡연 0.6 × 경구피임약 1.8 × 느린 대사 1.4 × 임신 1.2 · 1.7 · 2.5 (초기 · 중기 · 후기)</dd></div>
+              <div><dt>멜라토닌 리듬</dt><dd class="formula">M(t) = 5 + 55 × σ((t − DLMO − 1) ÷ 0.4) × σ((밤 끝 − t) ÷ 0.5)</dd></div>
+            </dl>
+            </div>
+            <h3 class="fa-h">모델 가정</h3>
+            <ul class="assume">
+              <li>카페인은 1구획 모델(1차 흡수, 1차 소실)로 계산하고, 여러 잔은 단순히 더해요.</li>
+              <li>생체이용률 0.99, 분포용적 0.6 L/kg, 흡수 반감기 10분, 기본 소실 반감기 5시간을 써요.</li>
+              <li>개인 반감기는 기본값에 개인 요인을 곱하고 1.5~20시간으로 제한해요.</li>
+              <li>취침 시 잔여는 혈중 양에 아직 흡수 중인 양을 더한 값이에요.</li>
+              <li>기준 50mg은 교육용으로 정한 참고값이고 의학적 기준이 아니에요.</li>
+              <li>카페인 마감은 아메리카노 한 잔(150mg)을 더 마시는 경우로 계산해요.</li>
+              <li>수면 시간은 취침부터 다음 기상(기상 24시간 뒤)까지로 봐요.</li>
+              <li>멜라토닌 리듬은 원래 취침 시각을 23:00으로 두고, 생체시계 적응도만큼 실제 취침 쪽으로 옮겨요. 분비 시작(DLMO)은 생체시계의 밤 2시간 전, 농도는 낮 5 · 밤 최고 60 pg/mL로 둬요.</li>
+              <li>멜라토닌 복용 참고 시각은 취침 시각에서 최고 농도 도달 시간(흡수 반감기 0.3시간, 소실 반감기 0.75시간)을 뺀 값이에요.</li>
+            </ul>
+          </details>
+        </div>
+      </section>
+
+      <p class="disclaimer">모든 수치는 문헌 평균값으로 만든 교육·시연용 근사치이며 의학적 진단이나 처방이 아니에요.</p>
+    </div>
+  </main>
+</div>
+
+<dialog id="dose-dlg" aria-labelledby="dd-title">
+  <form class="sheet" id="dose-form" novalidate>
+    <div class="sheet-h">
+      <h2 id="dd-title">카페인 추가</h2>
+      <button type="button" class="iconbtn" id="dd-close" aria-label="닫기"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="chips" role="radiogroup" aria-label="음료" id="dd-chips"></div>
+    <div class="grid2">
+      <div class="field"><label for="dd-time">마신 시각</label><input type="time" id="dd-time" aria-describedby="dd-err"></div>
+      <div class="field"><label for="dd-mg">카페인 양</label><div class="unit"><input type="number" id="dd-mg" inputmode="numeric" min="1" max="1000" step="1" aria-describedby="dd-err"><span>mg</span></div></div>
+    </div>
+    <p class="err" id="dd-err" hidden style="margin:0"></p>
+    <div class="actions">
+      <button type="button" class="btn danger" id="dd-del">삭제</button>
+      <button type="submit" class="btn primary" id="dd-save">추가</button>
+    </div>
+  </form>
+</dialog>
+<div class="vh" role="status" aria-live="polite" id="live"></div>
+
+<script id="engine">
+/* ════════════════════════════════════════════════════════════════
+   계산 엔진 (chrono_engine.py → JS 이식)
+   기상 시각을 0h로 두는 연속 시간 축 위에서 카페인(1구획 Bateman 모델)과
+   내인성 멜라토닌 리듬을 계산한다. DOM을 건드리지 않는 순수 함수 모음.
+   ════════════════════════════════════════════════════════════════ */
+var ChronoEngine = (function () {
+  'use strict';
+
+  var K = {
+    CAF_MW: 194.19,          // 카페인 분자량 (g/mol)
+    CAF_F: 0.99,             // 경구 생체이용률
+    CAF_VD: 0.6,             // 분포용적 (L/kg)
+    CAF_ABS_HL: 1 / 6,       // 흡수 반감기 (h)
+    CAF_HL: 5.0,             // 성인 평균 소실 반감기 (h)
+    CAF_KI_UM: 20.0,         // 아데노신 수용체 결합 상수 근사 (µM)
+    THRESHOLD_MG: 50.0,      // 취침 시 '수면 영향 적음' 기준 (휴리스틱)
+    DAILY_MAX_MG: 400,       // 성인 하루 권고 상한
+    MEL_EXO_HL: 0.75,        // 복용 멜라토닌 소실 반감기 (h)
+    MEL_EXO_ABS_HL: 0.3,     // 복용 멜라토닌 흡수 반감기 (h)
+    MEL_BASE: 5.0,           // 낮 시간 멜라토닌 (pg/mL)
+    MEL_PEAK: 60.0,          // 야간 최고치 근사 (pg/mL)
+    DLMO_BEFORE_SLEEP: 2.0,  // DLMO는 습관적 취침 약 2시간 전
+    MEL_RISE_W: 0.4, MEL_FALL_W: 0.5
+  };
+
+  var DRINKS = [
+    { id: 'americano', name: '아메리카노', mg: 150 },
+    { id: 'espresso',  name: '에스프레소', mg: 75 },
+    { id: 'can',       name: '캔커피', mg: 100 },
+    { id: 'energy',    name: '에너지드링크', mg: 80 },
+    { id: 'greentea',  name: '녹차', mg: 30 },
+    { id: 'cola',      name: '콜라', mg: 34 }
+  ];
+
+  function mod(a, n) { return ((a % n) + n) % n; }
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* 'HH:MM' → 자정 기준 분. 형식이 틀리면 null. */
+  function parseClock(s) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(s == null ? '' : s).trim());
+    if (!m) return null;
+    var h = +m[1], mm = +m[2];
+    if (h > 23 || mm > 59) return null;
+    return h * 60 + mm;
+  }
+  /* 시계 시각(분) → 기상 기준 경과시간(h). notBefore보다 이르면 다음 날로 넘긴다. */
+  function toH(anchorMin, clockMin, notBefore) {
+    var h = mod(clockMin - anchorMin, 1440) / 60;
+    while (h < (notBefore || 0)) h += 24;
+    return h;
+  }
+  /* 경과시간(h) → 'HH:MM' */
+  function toClock(anchorMin, h) {
+    var m = mod(Math.round(anchorMin + h * 60), 1440);
+    return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60);
+  }
+  /* 24시간 원형 시계에서 a - b 의 최단 차이 (-12 ~ +12h) */
+  function circularDiff(a, b) { return mod(a - b + 12, 24) - 12; }
+
+  /* 반감기 → 1차 속도상수: k = ln2 / t½ */
+  function rate(halfLifeH) { return Math.LN2 / halfLifeH; }
+
+  /* N(t) = N0 × (1/2)^(t / t½) */
+  function halfLifeDecay(n0, halfLifeH, t) { return n0 * Math.pow(0.5, t / halfLifeH); }
+
+  /* Bateman 함수: 단위 용량당 [혈중 분율, 위장관 잔여 분율]. 섭취 전(t<0)은 0. */
+  function bateman(t, ka, ke) {
+    if (t < 0) return [0, 0];
+    var sys = Math.abs(ka - ke) < 1e-9
+      ? ke * t * Math.exp(-ke * t)
+      : ka / (ka - ke) * (Math.exp(-ke * t) - Math.exp(-ka * t));
+    return [sys, Math.exp(-ka * t)];
+  }
+  /* Tmax = ln(ka/ke) / (ka - ke) */
+  function tmax(ka, ke) {
+    return Math.abs(ka - ke) < 1e-9 ? 1 / ke : Math.log(ka / ke) / (ka - ke);
+  }
+
+  /* 개인 요인(CYP1A2 활성)을 곱해 반감기를 추정, 1.5~20h로 제한 */
+  function effectiveHalfLife(p) {
+    var f = 1;
+    if (p.smoker) f *= 0.6;
+    if (p.oralContraceptive) f *= 1.8;
+    f *= ({ 0: 1, 1: 1.2, 2: 1.7, 3: 2.5 })[p.trimester || 0] || 1;
+    if (p.slowMetabolizer) f *= 1.4;
+    return clamp(K.CAF_HL * f, 1.5, 20);
+  }
+
+  /* 여러 번 마신 카페인을 단순 합산(선형 약동학)하는 모델 */
+  function caffeineModel(profile, doses) {
+    var hl = effectiveHalfLife(profile);
+    var ke = rate(hl), ka = rate(K.CAF_ABS_HL);
+    var vd = profile.weightKg * K.CAF_VD;
+    function parts(t) {
+      var s = 0, g = 0;
+      for (var i = 0; i < doses.length; i++) {
+        var f = bateman(t - doses[i].h, ka, ke);
+        s += doses[i].mg * K.CAF_F * f[0];
+        g += doses[i].mg * K.CAF_F * f[1];
+      }
+      return [s, g];
+    }
+    function systemic(t) { return parts(t)[0]; }
+    /* 앞으로 작용할 총량 = 혈중 + 흡수 대기. 취침 판정은 이 값으로 보수적으로 한다. */
+    function load(t) { var p = parts(t); return p[0] + p[1]; }
+    /* 아데노신 수용체 점유율 = C / (C + Ki), C는 µM */
+    function block(t) {
+      var c = systemic(t) / vd / K.CAF_MW * 1000;
+      return c / (c + K.CAF_KI_UM);
+    }
+    return { hl: hl, ke: ke, ka: ka, vd: vd, systemic: systemic, load: load, block: block, tmaxH: tmax(ka, ke) };
+  }
+
+  /* [해석해] 즉시 흡수 가정: Δt ≥ t½ × log2(dose / (기준 − 잔여)). 취침 몇 시간 전인지 반환. */
+  function analyticGapH(doseMg, thr, hl, residual) {
+    var margin = thr - (residual || 0);
+    if (margin <= 0) return null;
+    if (doseMg <= margin) return 0;
+    return hl * Math.log2(doseMg / margin);
+  }
+
+  /* [수치해] 흡수 지연과 기존 잔여량을 반영한 '마지막으로 마실 수 있는 시각'(이분법).
+     기존 섭취만으로 초과했거나 기상 직후에 마셔도 초과면 null. */
+  function numericCutoffH(model, bedH, doseMg, thr, residual) {
+    if (residual >= thr) return null;
+    function bedLoadIf(td) {
+      var f = bateman(bedH - td, model.ka, model.ke);
+      return residual + doseMg * K.CAF_F * (f[0] + f[1]);
+    }
+    if (bedLoadIf(bedH) <= thr) return bedH;
+    if (bedLoadIf(0) > thr) return null;
+    var lo = 0, hi = bedH;
+    while ((hi - lo) * 60 > 0.5) {
+      var mid = (lo + hi) / 2;
+      if (bedLoadIf(mid) <= thr) lo = mid; else hi = mid;
+    }
+    return lo;
+  }
+
+  /* 총량이 마지막으로 기준 아래로 내려가는 시각.
+     never: 하루 종일 기준을 넘지 않음 / h: null이면 96시간 안에 내려가지 않음 */
+  function lastDropBelow(model, thr) {
+    var step = 1 / 60, n = 96 * 60, last = -1;
+    for (var i = 0; i <= n; i++) if (model.load(i * step) > thr) last = i;
+    if (last < 0) return { never: true, h: null };
+    if (last >= n) return { never: false, h: null };
+    return { never: false, h: (last + 1) * step };
+  }
+
+  function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+  /* 내인성 멜라토닌 리듬. adaptation(0~1)으로 자연 위상과 실제 수면 위상 사이를 보간한다. */
+  function melatoninModel(sleepOnsetH, sleepDurH, naturalOnsetH, adaptation) {
+    var shift = clamp(adaptation, 0, 1) * circularDiff(sleepOnsetH, naturalOnsetH);
+    var on = naturalOnsetH + shift;          // 생물학적 밤의 시작
+    var off = on + sleepDurH;                // 생물학적 밤의 끝
+    var dlmo = on - K.DLMO_BEFORE_SLEEP;
+    function level(t) {
+      var shape = 0;
+      for (var k = -1; k <= 1; k++) {
+        var night = sigmoid((t - (dlmo + 24 * k + 1)) / K.MEL_RISE_W) *
+                    sigmoid((off + 24 * k - t) / K.MEL_FALL_W);
+        if (night > shape) shape = night;
+      }
+      return K.MEL_BASE + (K.MEL_PEAK - K.MEL_BASE) * shape;
+    }
+    var s0 = sleepOnsetH, s1 = sleepOnsetH + sleepDurH, overlap = 0;
+    for (var k = -1; k <= 1; k++) {
+      overlap += Math.max(0, Math.min(s1, off + 24 * k) - Math.max(s0, on + 24 * k));
+    }
+    return {
+      on: on, off: off, dlmo: dlmo, level: level,
+      overlapH: overlap, overlapRatio: overlap / sleepDurH,
+      phaseGapH: circularDiff(sleepOnsetH, on)
+    };
+  }
+
+  /* 입력 → 분석 결과 전체. 입력 검증은 화면 쪽에서 먼저 끝낸다. */
+  function analyze(input) {
+    var anchor = parseClock(input.wake);
+    var bedH = toH(anchor, parseClock(input.bed), 0.01);
+    var sleepDur = 24 - bedH;
+    var thr = input.thresholdMg || K.THRESHOLD_MG;
+    var profile = input.profile;
+
+    var doses = input.doses.map(function (d) {
+      return { h: toH(anchor, parseClock(d.time)), mg: +d.mg, name: d.name || '' };
+    }).sort(function (a, b) { return a.h - b.h; });
+
+    var caf = caffeineModel(profile, doses);
+    var clean = caffeineModel(profile, []);
+    var bedLoad = caf.load(bedH);
+    var mel = melatoninModel(bedH, sleepDur, toH(anchor, parseClock(input.naturalBedtime)), input.adaptation);
+
+    var total = 0, lastDoseH = null;
+    doses.forEach(function (d) { total += d.mg; lastDoseH = d.h; });
+
+    /* 음료 한 잔(mg)을 더 마신다면: 오늘 기록 반영 / 기록 없는 날 / 반감기 공식만 */
+    function cutFor(mg) {
+      var gap = analyticGapH(mg, thr, caf.hl, bedLoad);
+      return {
+        today: numericCutoffH(caf, bedH, mg, thr, bedLoad),
+        clean: numericCutoffH(clean, bedH, mg, thr, 0),
+        analytic: gap == null ? null : bedH - gap
+      };
+    }
+
+    var t = [], sys = [], load = [], block = [], melv = [];
+    for (var i = 0; i <= 288; i++) {
+      var x = i * 5 / 60;
+      t.push(x); sys.push(caf.systemic(x)); load.push(caf.load(x));
+      block.push(caf.block(x) * 100); melv.push(mel.level(x));
+    }
+
+    var work = null;
+    if (input.workStart && input.workEnd) {
+      var ws = toH(anchor, parseClock(input.workStart));
+      work = [ws, toH(anchor, parseClock(input.workEnd), ws + 0.01)];
+    }
+
+    return {
+      anchorMin: anchor, bedH: bedH, sleepDurH: sleepDur, thresholdMg: thr,
+      halfLifeH: caf.hl, tmaxMin: caf.tmaxH * 60, ke: caf.ke,
+      bedLoadMg: bedLoad, bedBlockPct: caf.block(bedH) * 100, sleepOk: bedLoad <= thr,
+      below: lastDropBelow(caf, thr), totalMg: total, lastDoseH: lastDoseH, doses: doses,
+      cutFor: cutFor,
+      dlmoH: mel.dlmo, bioNight: [mel.on, mel.off],
+      overlapRatio: mel.overlapRatio, overlapH: mel.overlapH, phaseGapH: mel.phaseGapH,
+      melatoninTimingH: bedH - tmax(rate(K.MEL_EXO_ABS_HL), rate(K.MEL_EXO_HL)),
+      work: work,
+      timeline: { t: t, sys: sys, load: load, block: block, mel: melv },
+      clock: function (h) { return toClock(anchor, h); }
+    };
+  }
+
+  /* 공식 자가 검증 (원본 파이썬 _self_test와 동일한 5개) */
+  function selfTest() {
+    var ok = Math.abs(halfLifeDecay(100, 5, 5) - 50) < 1e-9 &&
+      Math.abs(halfLifeDecay(100, 5, 10) - 25) < 1e-9 &&
+      bateman(0, 4, 0.14)[0] === 0 && Math.abs(bateman(0, 4, 0.14)[1] - 1) < 1e-12 &&
+      Math.abs(analyticGapH(200, 50, 5, 0) - 10) < 1e-9 &&
+      Math.abs(toH(parseClock('15:00'), parseClock('08:30')) - 17.5) < 1e-9;
+    return ok;
+  }
+
+  return {
+    K: K, DRINKS: DRINKS, parseClock: parseClock, toH: toH, toClock: toClock, mod: mod,
+    effectiveHalfLife: effectiveHalfLife, analyze: analyze, selfTest: selfTest
+  };
+})();
+if (typeof module !== 'undefined') module.exports = ChronoEngine;
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var E = ChronoEngine, K = E.K;
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var REF = E.DRINKS[0];          // 마감 계산의 기준 한 잔: 아메리카노 150mg
+  var NATURAL_BED = '23:00';      // 원래(낮 생활) 리듬의 취침 시각
+  var SPLIT_CHART = false;  // true면 농도 곡선을 카페인/멜라토닌 두 칸으로 나눠 그린다
+
+  function h(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'text') n.textContent = attrs[k];
+      else if (k === 'class') n.className = attrs[k];
+      else if (k === 'style') n.style.cssText = attrs[k];
+      else if (attrs[k] !== false && attrs[k] != null) n.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { if (c != null) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function s(tag, attrs) {
+    var n = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+  function icon(name, cls) {
+    var sv = s('svg', { class: 'i' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' });
+    var u = s('use', { href: '#i-' + name });
+    sv.appendChild(u);
+    return sv;
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function r0(x) { return String(Math.round(x)); }
+
+  /* ── 상태 ── */
+  var BLANK = { wake: '', bed: '', adapt: 100, weight: '', smoker: false, oc: false, slow: false, preg: false, tri: 2, doses: [] };
+
+  var S = null, persona = 'student', analyzed = false, submitted = false;
+  var R = null, view = '', uid = 0, timer = null, openTip = null;
+
+  function setState(src) {
+    S = JSON.parse(JSON.stringify(src));
+    S.doses.forEach(function (d) { d.uid = ++uid; });
+  }
+
+  function fillForm() {
+    $('#wake').value = S.wake || '';
+    $('#bed').value = S.bed || '';
+    $('#weight').value = S.weight || '';
+    $('#smoker').checked = !!S.smoker; $('#oc').checked = !!S.oc; $('#slow').checked = !!S.slow;
+    $('#preg').checked = !!S.preg;
+    document.querySelectorAll('input[name="tri"]').forEach(function (r) { r.checked = +r.value === (S.tri || 2); });
+    $('#tri-row').hidden = !S.preg;
+    $('#adapt').value = S.adapt;
+    paintSlider();
+    renderDoses();
+  }
+  function readForm() {
+    S.wake = $('#wake').value; S.bed = $('#bed').value; S.weight = $('#weight').value.trim();
+    S.smoker = $('#smoker').checked; S.oc = $('#oc').checked; S.slow = $('#slow').checked;
+    S.preg = $('#preg').checked;
+    var tri = document.querySelector('input[name="tri"]:checked'); S.tri = tri ? +tri.value : 2;
+    $('#tri-row').hidden = !S.preg;
+    S.adapt = +$('#adapt').value;
+  }
+  function paintSlider() {
+    var a = $('#adapt');
+    a.style.setProperty('--p', a.value + '%');
+    $('#adapt-out').textContent = a.value + '%';
+  }
+
+  /* ── 깨어 있는 시간 창 ── */
+  function awake() {
+    var w = E.parseClock(S.wake), b = E.parseClock(S.bed);
+    if (w == null || b == null || w === b) return null;
+    return { wake: w, bedH: E.toH(w, b, 0.01) };
+  }
+  function doseH(d) {
+    var w = E.parseClock(S.wake), c = E.parseClock(d.time);
+    return (w == null || c == null) ? null : E.toH(w, c);
+  }
+  function sortDoses() {
+    S.doses.sort(function (a, b) { return (doseH(a) || 0) - (doseH(b) || 0); });
+  }
+
+  function renderDoses() {
+    var list = $('#dose-list'), aw = awake(), total = 0;
+    list.textContent = '';
+    S.doses.forEach(function (d) {
+      total += +d.mg || 0;
+      var hh = doseH(d), bad = aw && hh != null && hh >= aw.bedH;
+      var b = h('button', { type: 'button', class: 'dose', 'aria-label': d.time + ' ' + d.name + ' ' + d.mg + '밀리그램, 눌러서 수정' + (bad ? ', 깨어 있는 시간 밖' : '') }, [
+        icon('clock'), h('span', { class: 't', text: d.time }), h('span', { class: 'n', text: d.name }),
+        h('span', { class: 'm', text: d.mg + 'mg' })
+      ]);
+      b.addEventListener('click', function () { openDose(d.uid); });
+      var del = h('button', { type: 'button', class: 'del', 'aria-label': d.time + ' ' + d.name + ' 기록 삭제' }, [icon('x')]);
+      del.addEventListener('click', function () {
+        S.doses = S.doses.filter(function (x) { return x.uid !== d.uid; });
+        renderDoses(); update();
+        $('#dose-add').focus();
+      });
+      list.appendChild(h('li', { class: bad ? 'bad' : null }, [b, del]));
+    });
+    if (!S.doses.length) list.appendChild(h('li', { class: 'dose-empty', text: '아직 기록이 없어요. 아래 버튼으로 추가하세요.' }));
+    $('#dose-total').textContent = S.doses.length ? '합계 ' + r0(total) + 'mg' : '';
+  }
+
+  /* ── 카페인 추가·수정 시트 ── */
+  var editing = null, ddName = REF.name;
+  function defaultDoseTime() {
+    var aw = awake();
+    if (!aw) return '';
+    var last = -1;
+    S.doses.forEach(function (d) { var x = doseH(d); if (x != null && x < aw.bedH) last = Math.max(last, x); });
+    var t = last < 0 ? 1 : last + 3;
+    if (t >= aw.bedH) t = last < 0 ? aw.bedH / 2 : (last + aw.bedH) / 2;
+    t = Math.min(Math.round(t * 6) / 6, Math.ceil(aw.bedH * 6 - 1) / 6);
+    return E.toClock(aw.wake, Math.max(0, t));
+  }
+  function openDose(id) {
+    readForm();
+    editing = id || null;
+    var d = null;
+    S.doses.forEach(function (x) { if (x.uid === id) d = x; });
+    var cur = d || { name: REF.name, mg: REF.mg, time: defaultDoseTime() };
+    $('#dd-time').value = cur.time || '';
+    ddName = cur.name;
+    var match = E.DRINKS.filter(function (x) { return x.name === cur.name; })[0];
+    $('#dr-' + (match ? match.id : 'custom')).checked = true;
+    $('#dd-mg').value = cur.mg;
+    $('#dd-title').textContent = d ? '카페인 수정' : '카페인 추가';
+    $('#dd-save').textContent = d ? '저장' : '추가';
+    $('#dd-del').hidden = !d;
+    $('#dd-err').hidden = true; $('#dd-mg').removeAttribute('aria-invalid'); $('#dd-time').removeAttribute('aria-invalid');
+    $('#dose-dlg').showModal();
+  }
+  function saveDose(e) {
+    e.preventDefault();
+    var time = $('#dd-time').value, mg = parseFloat($('#dd-mg').value), err = $('#dd-err'), aw = awake();
+    var msg = '';
+    if (E.parseClock(time) == null) { msg = '마신 시각을 입력하세요.'; $('#dd-time').setAttribute('aria-invalid', 'true'); }
+    else if (aw && E.toH(aw.wake, E.parseClock(time)) >= aw.bedH) { msg = '깨어 있는 시간(' + S.wake + '~' + S.bed + ') 안의 시각을 입력하세요.'; $('#dd-time').setAttribute('aria-invalid', 'true'); }
+    else if (!(mg >= 1 && mg <= 1000)) { msg = '카페인 양은 1~1000mg 사이로 입력하세요.'; $('#dd-mg').setAttribute('aria-invalid', 'true'); }
+    if (msg) { err.textContent = msg; err.hidden = false; return; }
+    var rec = { time: time, mg: Math.round(mg), name: ddName };
+    if (editing) S.doses.forEach(function (x) { if (x.uid === editing) { x.time = rec.time; x.mg = rec.mg; x.name = rec.name; } });
+    else { rec.uid = ++uid; S.doses.push(rec); }
+    sortDoses();
+    $('#dose-dlg').close();
+    renderDoses();
+    update();
+    $('#dose-add').focus();
+  }
+
+  /* ── 검증 ── */
+  function validate() {
+    var errs = [], missing = false;
+    function add(id, slot, msg, isMissing) { errs.push({ id: id, slot: slot, msg: msg, missing: !!isMissing }); if (isMissing) missing = true; }
+    var w = E.parseClock(S.wake), b = E.parseClock(S.bed), bedH = null;
+    if (w == null) add('wake', 'wake-err', '기상 시각을 입력하세요.', true);
+    if (b == null) add('bed', 'bed-err', '목표 취침 시각을 입력하세요.', true);
+    if (w != null && b != null) {
+      bedH = E.toH(w, b, 0.01);
+      if (w === b) { add('bed', 'bed-err', '취침 시각이 기상 시각과 같아요. 둘 중 하나를 바꾸세요.'); bedH = null; }
+      else if (24 - bedH < 1) { add('bed', 'bed-err', '취침부터 다음 기상까지가 1시간보다 짧아요. 시각을 확인하세요.'); bedH = null; }
+    }
+    var wt = String(S.weight == null ? '' : S.weight).trim();
+    if (!wt) add('weight', 'weight-err', '체중을 입력하세요.', true);
+    else if (!/^\d+(\.\d+)?$/.test(wt) || !(parseFloat(wt) >= 30 && parseFloat(wt) <= 200)) add('weight', 'weight-err', '체중은 30~200 사이 숫자로 입력하세요.');
+    if (bedH != null) {
+      var out = S.doses.filter(function (d) { var x = doseH(d); return x != null && x >= bedH; });
+      if (out.length) add('dose-list', 'dose-err', out.map(function (d) { return d.time + ' ' + d.name; }).join(', ') + ': 깨어 있는 시간(' + S.wake + '~' + S.bed + ') 밖이에요. 눌러서 시각을 고치세요.');
+    }
+    return { ok: errs.length === 0, errs: errs, missing: missing, bedH: bedH };
+  }
+  function paintErrors(v) {
+    ['wake-err', 'bed-err', 'weight-err', 'dose-err'].forEach(function (id) { var p = $('#' + id); p.hidden = true; p.textContent = ''; });
+    ['wake', 'bed', 'weight'].forEach(function (id) { $('#' + id).removeAttribute('aria-invalid'); });
+    var shown = 0;
+    v.errs.forEach(function (e) {
+      if (e.missing && !submitted) return;
+      shown++;
+      var input = $('#' + e.id), slot = $('#' + e.slot);
+      if (input && input.tagName !== 'UL') input.setAttribute('aria-invalid', 'true');
+      slot.textContent = e.msg; slot.hidden = false;
+    });
+    var fa = $('#form-alert');
+    fa.hidden = !(shown && submitted);
+    fa.textContent = shown ? '입력 ' + shown + '곳을 확인해 주세요.' : '';
+    return shown;
+  }
+  function focusField(id) {
+    var n = $('#' + id);
+    if (!n) return;
+    if (n.tagName === 'UL') n = n.querySelector('.bad .dose') || $('#dose-add');
+    n.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+    n.focus({ preventScroll: true });
+  }
+  function reduceMotion() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+  /* ── 결과 계산 보조 ── */
+  function clk(hh) { return (hh >= 24 ? '다음 날 ' : '') + R.clock(hh); }
+
+  /* 아메리카노 한 잔을 더 마신다면: 상태를 한 군데서 판정 */
+  function cutState() {
+    var c = R.cutFor(REF.mg), last = R.lastDoseH, st = { cut: c, okEnd: 0 };
+    if (!R.sleepOk) st.kind = 'over';
+    else if (c.today == null) st.kind = 'never';
+    else if (c.today >= R.bedH - 1e-9) { st.kind = 'any'; st.okEnd = R.bedH; }
+    else if (last != null && c.today < last) { st.kind = 'passed'; st.okEnd = c.today; }
+    else { st.kind = 'time'; st.okEnd = c.today; }
+    return st;
+  }
+
+  function setView(v) {
+    view = v;
+    ['empty', 'loading', 'error', 'done'].forEach(function (k) { $('#v-' + k).hidden = k !== v; });
+    $('#chart-card').hidden = v !== 'done';
+    $('#sum-card').hidden = v !== 'done';
+    $('#detail-card').hidden = v !== 'done';
+    $('#results').setAttribute('aria-busy', v === 'loading' ? 'true' : 'false');
+  }
+
+  function renderTiles(st) {
+    var tc = $('#t-cut'), cc = $('#c-cut');
+    tc.className = 'val'; cc.className = 'cap';
+    if (st.kind === 'time') { tc.textContent = R.clock(st.cut.today); cc.textContent = '아메리카노 한 잔 더 기준'; }
+    else if (st.kind === 'passed') { tc.textContent = R.clock(st.cut.today); cc.textContent = '마지막 기록(' + R.clock(R.lastDoseH) + ')보다 일러요'; cc.className = 'cap warn'; }
+    else if (st.kind === 'any') { tc.textContent = '언제든'; tc.className = 'val word'; cc.textContent = '취침 전까지 괜찮아요'; }
+    else { tc.textContent = '추가 금지'; tc.className = 'val word'; cc.textContent = st.kind === 'over' ? '이미 기준을 넘었어요' : '한 잔도 기준 초과'; cc.className = 'cap bad'; }
+
+    var tr = $('#t-resid'); tr.textContent = '';
+    tr.appendChild(document.createTextNode(r0(R.bedLoadMg)));
+    tr.appendChild(h('small', { text: 'mg' }));
+    $('#c-resid').textContent = '기준 ' + r0(R.thresholdMg) + 'mg';
+    renderRibbon(st);
+
+    var risk = $('#t-risk');
+    risk.className = 'pill ' + (R.sleepOk ? 'good' : 'bad');
+    risk.textContent = R.sleepOk ? '낮음' : '높음';
+    $('#c-risk').textContent = '차단 ' + R.bedBlockPct.toFixed(1) + '%';
+
+    $('#t-mel').textContent = R.clock(R.melatoninTimingH);
+    paintTip();
+  }
+
+  /* 기상~다음 기상 24시간 띠: 마셔도 됨 / 카페인 멈춤 / 수면 */
+  function renderRibbon(st) {
+    var box = $('#ribbon'); box.textContent = '';
+    var pct = function (hh) { return (hh / 24 * 100).toFixed(3) + '%'; };
+    var okEnd = st.okEnd, bedH = R.bedH, hasCut = okEnd > 0 && okEnd < bedH - 1e-9;
+    var track = h('div', { class: 'rb-track' });
+    function zone(cls, a, b, label, short) {
+      if (b - a <= 0.01) return;
+      track.appendChild(h('div', { class: 'rb-z ' + cls, style: 'left:' + pct(a) + ';width:' + pct(b - a), 'data-l': label, 'data-s': short }, [h('span', { text: label })]));
+    }
+    zone('rb-ok', 0, okEnd, '마셔도 돼요', '가능');
+    zone('rb-stop', okEnd, bedH, '카페인 멈춤', '멈춤');
+    zone('rb-sleep', bedH, 24, '수면', '');
+    var wrap = h('div', { class: 'rb-wrap' }, [track]);
+    if (hasCut) box.appendChild(h('div', { class: 'rb-top' }, [h('span', { 'data-x': (okEnd / 24 * 100).toFixed(3), text: '마감 ' + R.clock(okEnd) })]));
+    if (hasCut) wrap.appendChild(h('i', { class: 'rb-tick', style: 'left:' + pct(okEnd) }));
+    R.doses.forEach(function (d) { wrap.appendChild(h('i', { class: 'rb-dose', style: 'left:' + pct(d.h) })); });
+    var bot = h('div', { class: 'rb-bot' }), bx = bedH / 24 * 100;
+    if (bx > 32) bot.appendChild(h('span', { style: 'left:0', text: '기상 ' + R.clock(0) }));
+    bot.appendChild(h('span', { class: 'b', style: 'left:' + Math.min(Math.max(bx, 14), 86) + '%;transform:translateX(-50%)', text: '취침 ' + R.clock(bedH) }));
+    if (bx < 68) bot.appendChild(h('span', { style: 'right:0', text: R.clock(0) }));
+    box.appendChild(wrap); box.appendChild(bot);
+    fitRibbon();
+    $('#rb-key').hidden = !R.doses.length;
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', '기상 ' + R.clock(0) + '부터 다음 기상까지의 타임라인. ' +
+      (okEnd > 0 ? R.clock(0) + '부터 ' + R.clock(okEnd) + '까지 마셔도 됨, ' : '') +
+      (okEnd < bedH ? R.clock(okEnd) + '부터 취침 ' + R.clock(bedH) + '까지 카페인 멈춤, ' : '') + '이후 수면.');
+  }
+
+  /* 구간 글자는 칸 너비에 들어갈 때만: 긴 말 → 짧은 말 → 비움. 마감 시각 글자는 띠 밖으로 나가지 않게 당긴다. */
+  function fitRibbon() {
+    var box = $('#ribbon'), W = box.clientWidth;
+    if (!W) return;
+    box.querySelectorAll('.rb-z').forEach(function (z) {
+      var sp = z.firstChild, room = z.clientWidth - 10;
+      sp.textContent = z.getAttribute('data-l');
+      if (sp.offsetWidth > room) { sp.textContent = z.getAttribute('data-s') || ''; if (sp.offsetWidth > room) sp.textContent = ''; }
+    });
+    var bots = box.querySelectorAll('.rb-bot span'), bed = box.querySelector('.rb-bot .b');
+    bots.forEach(function (n) { n.style.visibility = ''; });
+    if (bed) {
+      var br = bed.getBoundingClientRect();
+      bots.forEach(function (n) {
+        if (n === bed) return;
+        var r = n.getBoundingClientRect();
+        if (r.right + 8 > br.left && r.left - 8 < br.right) n.style.visibility = 'hidden';
+      });
+    }
+    var lab = box.querySelector('.rb-top span');
+    if (lab) {
+      var w = lab.offsetWidth, px = parseFloat(lab.getAttribute('data-x')) / 100 * W;
+      lab.style.left = Math.max(0, Math.min(W - w, px - w / 2)) + 'px';
+    }
+  }
+
+  function tipText(key) {
+    if (key === 'cut') return '취침 때 몸에 남는 카페인이 ' + r0(R.thresholdMg) + 'mg 이하가 되도록, 아메리카노 한 잔(' + REF.mg + 'mg)을 더 마실 수 있는 마지막 시각이에요. 이미 마신 양과 내 반감기(' + R.halfLifeH.toFixed(1) + '시간)를 반영해요. 아무것도 마시지 않은 날이라면 ' +
+      (R.cutFor(REF.mg).clean == null ? '한 잔도 기준을 넘어요.' : R.clock(R.cutFor(REF.mg).clean) + '까지예요.');
+    if (key === 'resid') return '목표 취침 시각에 몸에 남아 있는 카페인 양이에요. 아직 흡수 중인 양도 포함해요.' +
+      (R.below.never ? '' : ' ' + r0(R.thresholdMg) + 'mg 아래로 내려가는 시각은 ' + (R.below.h == null ? '나흘 뒤 이후' : clk(R.below.h)) + '예요.');
+    if (key === 'risk') return '잔여 카페인이 ' + r0(R.thresholdMg) + 'mg 이하면 낮음, 넘으면 높음이에요. 카페인은 졸음 신호를 전하는 아데노신 수용체를 막는데, 취침 때 그 차단율이 ' + R.bedBlockPct.toFixed(1) + '%예요. ' + r0(R.thresholdMg) + 'mg은 교육용으로 정한 참고 기준이라, 실제 수면 영향은 사람마다 달라요.';
+    if (key === 'mel') return '취침 시각에 혈중 농도가 가장 높아지도록 계산한 복용 시각이에요. 국내에서 멜라토닌은 전문의약품이라, 복용 여부와 시각은 의사 처방을 따르세요.';
+    return '';
+  }
+  /* 설명은 누른 ⓘ가 속한 블록 바로 아래에 펼친다: 카페인 마감 → 큰 칸 아래, 나머지 → 세 칸 줄 아래 */
+  function paintTip() {
+    document.querySelectorAll('.info[data-tip]').forEach(function (b) { b.setAttribute('aria-expanded', b.getAttribute('data-tip') === openTip ? 'true' : 'false'); });
+    var cut = $('#tip-cut'), mini = $('#tip-mini');
+    cut.hidden = true; mini.hidden = true;
+    if (!openTip || !R) return;
+    var box = openTip === 'cut' ? cut : mini;
+    box.textContent = tipText(openTip); box.hidden = false;
+  }
+
+  function renderSummary(st) {
+    var items = [];
+    if (st.kind === 'time') items.push(['good', '아메리카노 한 잔 더는 ' + R.clock(st.cut.today) + ' 이전 권장']);
+    else if (st.kind === 'any') items.push(['good', '아메리카노 한 잔은 취침 전 언제든 괜찮아요']);
+    else if (st.kind === 'passed') items.push(['warn', '카페인 마감(' + R.clock(st.cut.today) + ')이 마지막 기록(' + R.clock(R.lastDoseH) + ')보다 일러요. 오늘은 더 마시지 않는 편이 좋아요']);
+    else if (st.kind === 'over') items.push(['bad', '오늘은 추가 카페인을 쉬어 가세요']);
+    else items.push(['warn', '아메리카노 한 잔은 기상 직후에 마셔도 기준을 넘어요']);
+
+    if (R.sleepOk) items.push(['good', '취침 시 카페인 잔여량이 낮아요 (' + r0(R.bedLoadMg) + 'mg)']);
+    else items.push(['bad', '취침 때 카페인이 ' + r0(R.bedLoadMg) + 'mg 남아 잠을 방해할 수 있어요' + (R.below.h != null ? '. ' + r0(R.thresholdMg) + 'mg 아래는 ' + clk(R.below.h) : '')]);
+
+    var pct = r0(R.overlapRatio * 100), bio = R.clock(R.bioNight[0]) + '~' + R.clock(R.bioNight[1]);
+    if (R.overlapRatio >= 0.8) items.push(['good', '생체시계와 수면 시간이 잘 맞아요 (일치율 ' + pct + '%)']);
+    else if (R.overlapRatio >= 0.4) items.push(['warn', '수면의 일부만 생체시계의 밤(' + bio + ')과 겹쳐요 (일치율 ' + pct + '%)']);
+    else items.push(['bad', '수면이 생체시계의 밤(' + bio + ')과 어긋나 있어요 (일치율 ' + pct + '%)']);
+
+    if (R.totalMg > K.DAILY_MAX_MG) items.push(['bad', '오늘 카페인 합계 ' + r0(R.totalMg) + 'mg, 성인 하루 권고량 ' + K.DAILY_MAX_MG + 'mg을 넘었어요']);
+
+    var ul = $('#sumlist'); ul.textContent = '';
+    items.forEach(function (it) {
+      ul.appendChild(h('li', {}, [
+        h('span', { class: 'dot ' + it[0] }, [icon(it[0] === 'good' ? 'check' : 'alert')]),
+        h('span', {}, [h('span', { class: 'vh', text: it[0] === 'good' ? '양호: ' : (it[0] === 'warn' ? '주의: ' : '경고: ') }), it[1]])
+      ]));
+    });
+  }
+
+  function renderModel(st) {
+    var c = st.cut, lists = document.querySelectorAll('#model-sum dl');
+    function cutTxt(hh) {
+      if (hh >= R.bedH - 1e-9) return '취침 전 언제든';
+      if (hh < 0) return '기상 전';
+      return R.clock(hh);
+    }
+    /* 행 = [이름, 작은 설명, 값]. 값은 줄이 넘어가지 않게 짧게 쓴다. */
+    function fill(i, rows) {
+      var dl = lists[i]; dl.textContent = '';
+      rows.forEach(function (r) {
+        dl.appendChild(h('div', {}, [h('dt', {}, [r[0], r[1] ? h('small', { text: r[1] }) : null]), h('dd', { text: r[2] })]));
+      });
+    }
+    var stop = '추가 금지', gap = R.phaseGapH, thr = r0(R.thresholdMg) + 'mg';
+    fill(0, [
+      ['개인 반감기', '', R.halfLifeH.toFixed(1) + '시간'],
+      ['최고 농도 도달', '마신 뒤 걸리는 시간', '약 ' + r0(R.tmaxMin) + '분'],
+      ['오늘 합계', '권고 상한 ' + K.DAILY_MAX_MG + 'mg', r0(R.totalMg) + 'mg'],
+      ['취침 시 잔여', '흡수 중 포함 · 기준 ' + thr, r0(R.bedLoadMg) + 'mg'],
+      ['취침 시 수용체 차단율', '', R.bedBlockPct.toFixed(1) + '%'],
+      ['기준 이하 도달', thr + ' 아래로 내려가는 시각', R.below.never ? '계속 기준 이하' : (R.below.h == null ? '나흘 뒤 이후' : clk(R.below.h))]
+    ]);
+    fill(1, [
+      ['마감 · 흡수 반영', '수치해 · ' + REF.mg + 'mg 기준', !R.sleepOk || c.today == null ? stop : cutTxt(c.today)],
+      ['마감 · 반감기 공식', '해석해 · 즉시 흡수 가정', !R.sleepOk || c.analytic == null ? stop : cutTxt(c.analytic)],
+      ['안 마신 날의 마감', '오늘 기록이 없다고 볼 때', c.clean == null ? stop : cutTxt(c.clean)]
+    ]);
+    fill(2, [
+      ['멜라토닌 분비 시작', 'DLMO 추정', R.clock(R.dlmoH)],
+      ['생체시계의 밤', '', R.clock(R.bioNight[0]) + ' ~ ' + R.clock(R.bioNight[1])],
+      ['수면 일치율', '생체시계의 밤과 겹치는 비율', r0(R.overlapRatio * 100) + '%'],
+      ['위상 차이', '취침 − 생체시계의 밤 시작', (gap < -0.05 ? '−' : '+') + Math.abs(gap).toFixed(1) + '시간'],
+      ['멜라토닌 복용 참고', '처방 시 참고', R.clock(R.melatoninTimingH)]
+    ]);
+  }
+
+  function renderTable() {
+    var t = $('#table'); t.textContent = '';
+    t.appendChild(h('caption', { class: 'vh', text: '1시간 간격 카페인과 멜라토닌 추정치' }));
+    function th(lines, attrs) { var n = h('th', attrs); lines.forEach(function (x, i) { if (i) n.appendChild(h('br')); n.appendChild(document.createTextNode(x)); }); return n; }
+    t.appendChild(h('thead', {}, [
+      h('tr', {}, [th(['시각'], { scope: 'col', rowspan: 2 }), th(['카페인'], { scope: 'colgroup', colspan: 4, class: 'grp' }), th(['멜라토닌'], { scope: 'colgroup', class: 'grp' })]),
+      h('tr', {}, [['혈중', 'mg'], ['흡수 중', '포함 mg'], ['농도', 'mg/L'], ['수용체', '차단 %'], ['농도', 'pg/mL']].map(function (x) { return th(x, { scope: 'col' }); }))
+    ]));
+    var tb = h('tbody'), vd = parseFloat(S.weight) * K.CAF_VD;   // 분포용적(L) = 체중 × 0.6
+    for (var i = 0; i <= 288; i += 12) {
+      tb.appendChild(h('tr', {}, [
+        h('td', { text: R.clock(R.timeline.t[i]) }), h('td', { text: r0(R.timeline.sys[i]) }),
+        h('td', { text: r0(R.timeline.load[i]) }), h('td', { text: (R.timeline.sys[i] / vd).toFixed(1) }),
+        h('td', { text: r0(R.timeline.block[i]) }), h('td', { text: r0(R.timeline.mel[i]) })
+      ]));
+    }
+    t.appendChild(tb);
+  }
+
+  /* ── 농도 곡선: 시안처럼 한 그림에 두 곡선. 높이는 각자 최댓값 기준(값은 말풍선·표로 확인) ── */
+  var G = null, scrubIdx = 0, scrubTimer = null;
+  function niceMax(v) {
+    var steps = [10, 20, 25, 50, 100, 200, 250, 500, 1000];
+    for (var i = 0; i < steps.length; i++) if (v / steps[i] <= 4) return { max: Math.ceil(v / steps[i]) * steps[i], step: steps[i] };
+    return { max: Math.ceil(v / 1000) * 1000, step: 1000 };
+  }
+  function renderChart(st) {
+    var box = $('#chart'), split = SPLIT_CHART;
+    var W = Math.max(260, Math.round(box.clientWidth || 300)), wide = W >= 520;
+    var tl = R.timeline, maxSys = Math.max.apply(null, tl.sys);
+    var L = split ? 32 : 4, Rt = split ? 6 : 4, top = 70;
+    var hA = split ? (wide ? 200 : 150) : (wide ? 250 : 176), gap = 26, hB = wide ? 96 : 76, axisH = 28;
+    var baseA = top + hA, bTop = baseA + gap, baseB = split ? bTop + hB : baseA;
+    var H = baseB + axisH, pw = W - L - Rt;
+    var x = function (t) { return L + t / 24 * pw; };
+    var nm = niceMax(Math.max(maxSys * 1.08, R.thresholdMg * 1.6));
+    var cTop = split ? nm.max : Math.max(maxSys / 0.74, R.thresholdMg * 1.7);
+    var mTop = split ? 70 : K.MEL_PEAK / 0.5;
+    var yC = function (v) { return baseA - v / cTop * hA; };
+    var yM = function (v) { return baseB - v / mTop * (split ? hB : hA); };
+
+    var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, 'aria-hidden': 'true' });
+    var defs = s('defs', {});
+    [['gc', 'var(--caf)'], ['gm', 'var(--mel)']].forEach(function (g) {
+      var lg = s('linearGradient', { id: g[0], x1: 0, y1: 0, x2: 0, y2: 1 });
+      lg.appendChild(s('stop', { offset: '0', 'stop-color': g[1], 'stop-opacity': .34 }));
+      lg.appendChild(s('stop', { offset: '1', 'stop-color': g[1], 'stop-opacity': .03 }));
+      defs.appendChild(lg);
+    });
+    svg.appendChild(defs);
+
+    if (split) {
+      // 두 칸 각각에 눈금을 단다: 위 카페인(mg), 아래 멜라토닌(pg/mL)
+      for (var v = 0; v <= nm.max + 1e-9; v += nm.step) {
+        svg.appendChild(s('line', { x1: L, x2: W - Rt, y1: yC(v), y2: yC(v), stroke: v === 0 ? 'var(--field-line)' : 'var(--line)', 'stroke-width': 1 }));
+        svg.appendChild(s('text', { x: L - 6, y: yC(v) + 4, 'text-anchor': 'end', text: String(v) }));
+      }
+      [0, 30, 60].forEach(function (v) {
+        svg.appendChild(s('line', { x1: L, x2: W - Rt, y1: yM(v), y2: yM(v), stroke: v === 0 ? 'var(--field-line)' : 'var(--line)', 'stroke-width': 1 }));
+        svg.appendChild(s('text', { x: L - 6, y: yM(v) + 4, 'text-anchor': 'end', text: String(v) }));
+      });
+    } else {
+      svg.appendChild(s('line', { x1: L, x2: L, y1: top, y2: baseA, stroke: 'var(--field-line)', 'stroke-width': 1 }));
+      svg.appendChild(s('line', { x1: L, x2: W - Rt, y1: baseA, y2: baseA, stroke: 'var(--field-line)', 'stroke-width': 1 }));
+    }
+    svg.appendChild(s('line', { x1: L, x2: W - Rt, y1: yC(R.thresholdMg), y2: yC(R.thresholdMg), stroke: 'var(--ink-3)', 'stroke-width': 1.5, 'stroke-dasharray': '3 5' }));
+
+    function curve(arr, y, base, color, grad) {
+      var d = '';
+      for (var i = 0; i < arr.length; i++) d += (i ? 'L' : 'M') + x(tl.t[i]).toFixed(1) + ',' + y(arr[i]).toFixed(1);
+      svg.appendChild(s('path', { d: d + 'L' + x(24).toFixed(1) + ',' + base + 'L' + x(0).toFixed(1) + ',' + base + 'Z', fill: 'url(#' + grad + ')' }));
+      svg.appendChild(s('path', { d: d, fill: 'none', stroke: color, 'stroke-width': 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    }
+    curve(tl.mel, yM, baseB, 'var(--mel)', 'gm');
+    curve(tl.sys, yC, baseA, 'var(--caf)', 'gc');
+
+    R.doses.forEach(function (d) {
+      svg.appendChild(s('circle', { cx: x(d.h), cy: baseA, r: 4.5, fill: 'var(--card)', stroke: 'var(--caf)', 'stroke-width': 2.5 }));
+    });
+
+    var hasCut = st.okEnd > 0 && st.okEnd < R.bedH - 1e-9;
+    if (hasCut) svg.appendChild(s('line', { x1: x(st.okEnd), x2: x(st.okEnd), y1: 62, y2: baseA, stroke: 'var(--caf)', 'stroke-width': 1.5, 'stroke-dasharray': '4 4' }));
+
+    var bi = Math.round(R.bedH * 12), bx = x(R.bedH);
+    svg.appendChild(s('line', { x1: bx, x2: bx, y1: 30, y2: baseB, stroke: 'var(--accent)', 'stroke-width': 1.5, 'stroke-dasharray': '4 4' }));
+    svg.appendChild(s('circle', { cx: bx, cy: yM(tl.mel[bi]), r: 4.5, fill: 'var(--mel)', stroke: 'var(--card)', 'stroke-width': 2 }));
+    svg.appendChild(s('circle', { cx: bx, cy: yC(tl.sys[bi]), r: 4.5, fill: 'var(--caf)', stroke: 'var(--card)', 'stroke-width': 2 }));
+
+    // x축: 6시간(넓으면 3시간) 간격 + 취침 시각. 취침과 가까운 눈금은 뺀다.
+    var every = wide ? 3 : (W < 290 ? 12 : 6), guard = wide ? 1.6 : (W < 290 ? 5 : 3.2);
+    for (var hh = 0; hh <= 24; hh += every) {
+      if (Math.abs(hh - R.bedH) < guard) continue;
+      svg.appendChild(s('text', { x: x(hh), y: baseB + 19, 'text-anchor': hh === 0 ? 'start' : (hh === 24 ? 'end' : 'middle'), text: R.clock(hh) }));
+    }
+    var bt = s('text', { x: bx, y: baseB + 19, 'text-anchor': bx > W - 24 ? 'end' : 'middle', text: R.clock(R.bedH) });
+    bt.setAttribute('style', 'font-weight:700;fill:var(--ink)');
+    svg.appendChild(bt);
+
+    var cross = s('g', { class: 'cross' });
+    var cl = s('line', { y1: 60, y2: baseB, stroke: 'var(--ink)', 'stroke-width': 1.2 });
+    var ca = s('circle', { r: 5.5, fill: 'var(--caf)', stroke: 'var(--card)', 'stroke-width': 2 });
+    var cb = s('circle', { r: 5.5, fill: 'var(--mel)', stroke: 'var(--card)', 'stroke-width': 2 });
+    cross.appendChild(cl); cross.appendChild(ca); cross.appendChild(cb);
+    svg.appendChild(cross);
+
+    box.textContent = '';
+    box.appendChild(svg);
+    var pBed = h('span', { class: 'cpill bed' }, [icon('moon'), '취침 ' + R.clock(R.bedH)]);
+    var pCut = hasCut ? h('span', { class: 'cpill cut' }, [icon('cup'), '마감 ' + R.clock(st.okEnd)]) : null;
+    var pTip = h('span', { class: 'cpill tip' });
+    box.appendChild(pBed); if (pCut) box.appendChild(pCut); box.appendChild(pTip);
+    function place(p, px, row) {
+      var w = p.offsetWidth, left = Math.max(0, Math.min(W - w, px - w / 2));
+      p.style.left = left + 'px'; p.style.top = (row * 34) + 'px';
+    }
+    place(pBed, bx, 0);
+    if (pCut) place(pCut, x(st.okEnd), 1);
+    G = { x: x, yC: yC, yM: yM, L: L, pw: pw, W: W, svg: svg, cl: cl, ca: ca, cb: cb, tip: pTip, place: place };
+    paintScrub();
+
+    var lg = $('#legend'); lg.textContent = '';
+    lg.appendChild(h('span', {}, [h('i', { class: 'l-caf' }), split ? '카페인 (mg)' : '카페인 농도']));
+    lg.appendChild(h('span', {}, [h('i', { class: 'l-mel' }), split ? '멜라토닌 (pg/mL)' : '멜라토닌 농도']));
+    lg.appendChild(h('span', {}, [h('i', { class: 'l-thr' }), '수면 기준 ' + r0(R.thresholdMg) + 'mg']));
+    if (R.doses.length) lg.appendChild(h('span', {}, [h('i', { class: 'l-dose' }), '마신 시각']));
+  }
+  function paintScrub() {
+    if (!G || !R) return;
+    var i = Math.max(0, Math.min(288, scrubIdx)), tl = R.timeline, px = G.x(tl.t[i]);
+    G.cl.setAttribute('x1', px); G.cl.setAttribute('x2', px);
+    G.ca.setAttribute('cx', px); G.ca.setAttribute('cy', G.yC(tl.sys[i]));
+    G.cb.setAttribute('cx', px); G.cb.setAttribute('cy', G.yM(tl.mel[i]));
+    var t = R.clock(tl.t[i]);
+    G.tip.textContent = '';
+    G.tip.appendChild(h('b', { text: t }));
+    G.tip.appendChild(h('span', { text: '카페인 ' + r0(tl.sys[i]) + 'mg · 멜라토닌 ' + r0(tl.mel[i]) + 'pg/mL' }));
+    G.place(G.tip, px, 0);
+    var box = $('#chart');
+    box.setAttribute('aria-valuenow', i);
+    box.setAttribute('aria-valuetext', t + ', 체내 카페인 ' + r0(tl.sys[i]) + '밀리그램, 수용체 차단 ' + r0(tl.block[i]) + '퍼센트, 멜라토닌 ' + r0(tl.mel[i]) + '피코그램');
+  }
+  function scrubOn() { clearTimeout(scrubTimer); $('#chart').classList.add('scrub'); }
+  function scrubOff(delay) {
+    clearTimeout(scrubTimer);
+    scrubTimer = setTimeout(function () { $('#chart').classList.remove('scrub'); }, delay || 0);
+  }
+  function scrubFromPointer(ev) {
+    if (!G) return;
+    var rect = G.svg.getBoundingClientRect();
+    var px = (ev.clientX - rect.left) / rect.width * G.W;
+    scrubIdx = Math.round(Math.max(0, Math.min(1, (px - G.L) / G.pw)) * 288);
+    scrubOn(); paintScrub();
+  }
+
+  /* ── 메인 갱신 ── */
+  function update(opts) {
+    opts = opts || {};
+    var v = validate();
+    paintErrors(v);
+    $('#p-student').setAttribute('aria-pressed', persona === 'student');
+    $('#p-night').setAttribute('aria-pressed', persona === 'night');
+    document.body.classList.toggle('pre', !analyzed);
+    if (!analyzed) { setView('empty'); R = null; return v; }
+    if (!v.ok) {
+      setView('error'); R = null;
+      var ul = $('#err-list'); ul.textContent = '';
+      v.errs.forEach(function (e) {
+        var b = h('button', { type: 'button', class: 'jump', text: e.msg });
+        b.addEventListener('click', function () { focusField(e.id); });
+        ul.appendChild(h('li', {}, [b]));
+      });
+      return v;
+    }
+    R = E.analyze({
+      wake: S.wake, bed: S.bed, naturalBedtime: NATURAL_BED, adaptation: S.adapt / 100,
+      doses: S.doses.map(function (d) { return { time: d.time, mg: +d.mg, name: d.name }; }),
+      profile: { weightKg: parseFloat(S.weight), smoker: S.smoker, oralContraceptive: S.oc, slowMetabolizer: S.slow, trimester: S.preg ? S.tri : 0 }
+    });
+    setView('done');
+    var st = cutState();
+    scrubIdx = Math.round(R.bedH * 12);
+    renderTiles(st); renderSummary(st); renderModel(st); renderTable(); renderChart(st);
+    if (opts.announce) {
+      $('#live').textContent = '분석 완료. 카페인 마감 ' + $('#t-cut').textContent + ', ' + $('#c-cut').textContent + '. 취침 시 잔여 ' + r0(R.bedLoadMg) + '밀리그램. 수면 방해 ' + (R.sleepOk ? '낮음' : '높음') + '.';
+    }
+    return v;
+  }
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(function () { readForm(); renderDoses(); update(); }, 120);
+  }
+  function setBusy(on) {
+    $('#cta').setAttribute('aria-busy', on ? 'true' : 'false');
+    $('#cta-t').textContent = on ? '분석 중' : '분석하기';
+  }
+  function withLoading(fn) {
+    clearTimeout(timer);
+    document.body.classList.toggle('pre', !analyzed);
+    setView('loading'); setBusy(true);
+    $('#live').textContent = '분석 중이에요.';
+    timer = setTimeout(function () { setBusy(false); fn(); }, 450);
+  }
+  function isNarrow() { return window.matchMedia('(max-width: 959px)').matches; }
+
+  /* 모드 전환: 생체시계 적응도 기본값만 바꾸고 나머지 입력은 건드리지 않는다 */
+  var ADAPT_DEFAULT = { student: 100, night: 30 };
+  function setPersona(key, apply) {
+    var changed = key !== persona;
+    persona = key;
+    $('#p-student').setAttribute('aria-pressed', key === 'student');
+    $('#p-night').setAttribute('aria-pressed', key === 'night');
+    if (!apply || !changed) return;      // 같은 모드를 다시 눌렀을 때는 직접 맞춘 값을 지킨다
+    clearTimeout(timer);
+    readForm();
+    S.adapt = ADAPT_DEFAULT[key];
+    $('#adapt').value = S.adapt; paintSlider();
+    update();
+    $('#live').textContent = (key === 'night' ? '교대근무자' : '수험생') + ' 모드. 생체시계 적응도를 ' + S.adapt + '%로 맞췄어요.';
+  }
+
+  function init() {
+    console.assert(E.selfTest(), '엔진 자가 검증 실패');
+
+    var chips = $('#dd-chips');
+    E.DRINKS.concat([{ id: 'custom', name: '직접 입력', mg: null }]).forEach(function (d) {
+      var input = h('input', { type: 'radio', name: 'dd-drink', id: 'dr-' + d.id, value: d.id });
+      input.addEventListener('change', function () {
+        ddName = d.name;
+        if (d.mg != null) $('#dd-mg').value = d.mg; else { $('#dd-mg').focus(); $('#dd-mg').select(); }
+      });
+      chips.appendChild(h('label', { class: 'chip', for: 'dr-' + d.id }, [input, h('span', {}, [d.name, d.mg != null ? h('b', { text: String(d.mg) }) : null])]));
+    });
+
+    setState(BLANK); analyzed = false;   // 처음에는 빈 입력으로 시작
+    fillForm(); setPersona('student');
+    update();
+
+    var form = $('#inputs');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (view === 'loading') return;
+      submitted = true;
+      readForm();
+      var v = validate();
+      if (!v.ok) { update(); focusField(v.errs[0].id); return; }
+      analyzed = true;
+      withLoading(function () {
+        update({ announce: true });
+        if (isNarrow()) $('#results').scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' });
+      });
+    });
+    form.addEventListener('input', function (e) { if (e.target.id === 'adapt') paintSlider(); schedule(); });
+    form.addEventListener('change', schedule);
+
+    $('#p-student').addEventListener('click', function () { setPersona('student', true); });
+    $('#p-night').addEventListener('click', function () { setPersona('night', true); });
+    $('#dose-add').addEventListener('click', function () { openDose(null); });
+    $('#dose-form').addEventListener('submit', saveDose);
+    $('#dd-close').addEventListener('click', function () { $('#dose-dlg').close(); });
+    $('#dd-del').addEventListener('click', function () {
+      S.doses = S.doses.filter(function (x) { return x.uid !== editing; });
+      $('#dose-dlg').close(); renderDoses(); update(); $('#dose-add').focus();
+    });
+
+    document.querySelectorAll('.info').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var key = b.getAttribute('data-tip');
+        openTip = openTip === key ? null : key;
+        paintTip();
+      });
+    });
+
+    $('#reset-btn').addEventListener('click', function () {
+      clearTimeout(timer);
+      submitted = false; analyzed = false;
+      setState(BLANK); S.adapt = ADAPT_DEFAULT[persona]; fillForm(); update();
+      $('#live').textContent = '입력을 초기화했어요.';
+      $('#wake').focus();
+    });
+    [$('#dose-dlg')].forEach(function (d) {
+      d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    });
+
+    var chart = $('#chart'), dragging = false;
+    chart.addEventListener('pointerdown', function (e) { dragging = true; scrubFromPointer(e); });
+    chart.addEventListener('pointermove', function (e) { if (dragging || e.pointerType === 'mouse') scrubFromPointer(e); });
+    chart.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') scrubOff(0); });
+    window.addEventListener('pointerup', function (e) { if (dragging) { dragging = false; if (e.pointerType !== 'mouse') scrubOff(2500); } });
+    chart.addEventListener('pointercancel', function () { dragging = false; scrubOff(0); });
+    chart.addEventListener('focus', function () { if (chart.matches(':focus-visible')) { scrubOn(); paintScrub(); } });
+    chart.addEventListener('blur', function () { scrubOff(0); });
+    chart.addEventListener('keydown', function (e) {
+      var d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -12, PageUp: 12 }[e.key];
+      if (e.key === 'Home') scrubIdx = 0; else if (e.key === 'End') scrubIdx = 288; else if (d) scrubIdx = Math.max(0, Math.min(288, scrubIdx + d)); else return;
+      e.preventDefault(); scrubOn(); paintScrub();
+    });
+
+    var lastW = 0;
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(function () {
+        var w = $('#chart').clientWidth;
+        if (R && view === 'done' && Math.abs(w - lastW) > 2) { lastW = w; renderChart(cutState()); }
+      }).observe($('#chart'));
+      new ResizeObserver(function () { if (R && view === 'done') fitRibbon(); }).observe($('#ribbon'));
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
